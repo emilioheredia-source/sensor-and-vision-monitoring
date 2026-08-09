@@ -1,0 +1,16 @@
+[workspace]
+name = "process-monitoring-demos"
+description = "Reading machine condition from sensors and from images"
+authors = ["Emilio Heredia <emilioheredia@gmail.com>"]
+channels = ["conda-forge"]
+platforms = ["win-64", "linux-64", "osx-64"]
+version = "1.0.0"
+
+[dependencies]
+python = "3.12.*"
+numpy = ">=2.0"
+pandas = ">=2.0"
+scikit-learn = ">=1.5"
+matplotlib = ">=3.8"
+pyqt = ">=5.15"
+opencv = ">=4.10"

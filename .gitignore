@@ -1,0 +1,15 @@
+# Datasets and captured frames. Public or re-shootable; see each project's
+# README for the source.
+*/data/
+
+# pixi
+.pixi/
+
+# python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# OS
+Thumbs.db
+desktop.ini
