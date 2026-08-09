@@ -1,6 +1,6 @@
 """Crop a frame down to the gauge, the way a real installation would be aimed.
 
-    pixi run python tools/crop_to_gauge.py "tests/third mask.png"
+    pixi run python tools/crop_to_gauge.py frame.png
 
 The bench photos take in a whole desk. A camera bolted in front of a sight glass
 would not, so cropping to the mask first is closer to the real case as well as

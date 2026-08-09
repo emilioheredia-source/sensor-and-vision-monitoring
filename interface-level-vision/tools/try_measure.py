@@ -1,6 +1,6 @@
 """Find the window, read the levels in it, and draw the result.
 
-    pixi run python tools/try_measure.py tests/first_mask.png --window-height-mm 100
+    pixi run python tools/try_measure.py frame_cropped.png --window-height-mm 100
 """
 
 import argparse

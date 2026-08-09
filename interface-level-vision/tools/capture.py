@@ -1,6 +1,6 @@
 """Grab a frame from the camera and save it.
 
-    pixi run python tools/capture.py --out tests/latest.png
+    pixi run python tools/capture.py --out frame.png
 
 Two things this does that a bare VideoCapture call does not, both learned from
 the rig rather than guessed. The first read commonly fails while the device

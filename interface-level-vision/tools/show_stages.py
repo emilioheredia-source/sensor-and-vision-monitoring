@@ -1,6 +1,6 @@
 """Save one picture per step, so the whole process can be looked at.
 
-    pixi run python tools/show_stages.py "tests/third mask_cropped.png"
+    pixi run python tools/show_stages.py frame_cropped.png
 
 Writes a numbered sequence into a folder beside the image. Every step is a
 picture of what the code had at that point, rather than a description of it.
