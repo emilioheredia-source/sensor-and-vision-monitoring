@@ -121,9 +121,9 @@ Nothing touched between shots except the lamp.
 | lighting | upper mm | lower mm | layer mm | centre mm | upper step | scale check |
 |---|---|---|---|---|---|---|
 | front | 68.27 | 50.77 | 17.50 | 59.52 | -0.0091 | 0.84% |
-| side right | 68.55 | 51.48 | 17.07 | 60.01 | -0.0075 | 0.67% |
+| front-side right (45°) | 68.55 | 51.48 | 17.07 | 60.01 | -0.0075 | 0.67% |
 | backlit | 68.10 | 51.07 | 17.03 | 59.58 | **-0.0270** | **0.09%** |
-| side right closer | 68.13 | 50.90 | 17.23 | 59.52 | -0.0156 | 1.10% |
+| side right (90°) | 68.13 | 50.90 | 17.23 | 59.52 | -0.0156 | 1.10% |
 | room light only | 67.73 | 51.69 | 16.04 | 59.71 | -0.0198 | 0.06% |
 
 | measurement | range | standard deviation |
@@ -139,9 +139,14 @@ The layer centre is the steadiest of the four and the thickness the least
 steady, 0.21 mm against 0.55 mm: the centre averages the two boundary errors and
 the thickness adds them.
 
-Backlighting gives the strongest steps and the best scale check, and it is also
-the lighting a plant is least likely to have, so the pictures above are all from
-a side-lit frame.
+Backlighting gives the strongest steps and the best scale check, and it needs a
+window on the far side of the vessel, which most plants will not have. The 90°
+side light, entering across the interface rather than along the camera's own
+line of sight, gives the clearest image of the rest, but it needs a window on
+the side of the vessel, which is no more given than one at the back. The
+walkthrough figures earlier on this page are from that 90° side light. Front and
+front-side lighting need no window beyond the one the camera already looks
+through, which makes them the two a plant is actually likely to have.
 
 Room light only is barely readable by eye and landed within half a millimetre of
 the rest.
@@ -152,8 +157,7 @@ network.
 Across all five lightings the reading stayed within about a millimetre, without
 retuning anything. That is not licence to change the lighting mid-run: a change
 shifts the reading while it happens, so the light should be set once and left
-alone. Front or side lighting, not backlighting, is what a plant is most likely
-to be able to give it, and both scored well here.
+alone.
 
 ## The scale checks itself
 
