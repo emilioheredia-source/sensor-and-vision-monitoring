@@ -19,8 +19,9 @@ rule, and land within noise of it.
 
 ## interface-level-vision
 
-Reads a liquid-liquid interface level from a camera, on a bench rig that
-mirrors the sight glass on a solvent extraction settler.
+Reads a liquid-liquid interface level from a camera: a jar of water and oil on
+a desk, read through a window shaped like the sight glass on a solvent
+extraction settler.
 
 <img src="interface-level-vision/figures/stage_reading.png" width="380" alt="both boundaries read off in millimetres against the printed scale">
 

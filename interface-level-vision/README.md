@@ -1,8 +1,8 @@
 # Reading a liquid interface from a camera
 
-Machine vision reading the level of a liquid-liquid interface, on a bench rig
-that mirrors a solvent extraction settler: three layers, two boundaries, read
-through a window shaped like a flat glass level gauge.
+Machine vision reading the level of a liquid-liquid interface: a jar of water
+and oil on a desk, three layers and two boundaries, read through a window
+shaped like a flat glass level gauge.
 
 In a settler the layers are aqueous solution, crud and organic solvent. On the
 bench they are water, oil and air.
