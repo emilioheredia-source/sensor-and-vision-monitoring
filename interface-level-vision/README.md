@@ -212,3 +212,14 @@ pixi run python tools/show_channels.py frame_cropped.png
 For a lighting series, `tools/lighting_trial.py --label "side right"` captures,
 measures and appends a row, and `tools/lighting_report.py` turns the rows into
 the comparison above.
+
+## What's next
+
+This demo reads the level once per frame and prints the result. The next step
+in a real control system is publishing that reading as a process variable: an
+operator screen can show it, an alarm can trigger off it, a historian can log
+it, and a trend chart can plot it live. It's a typical pattern in EPICS, or
+any other SCADA system.
+
+A live version is the natural extension: read continuously, publish the two
+boundary heights as they come in, and plot them updating in real time.
