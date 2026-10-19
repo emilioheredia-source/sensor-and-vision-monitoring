@@ -1,0 +1,155 @@
+plant,what,value
+30 L mixers (ndpr_plant),slowest time constant,393.31295665872983
+30 L mixers (ndpr_plant),d_purity Q_org,-0.0026387505482321494
+30 L mixers (ndpr_plant),d_recovery Q_org,0.0751668924894594
+30 L mixers (ndpr_plant),nonlin_purity Q_org,1.1094936616318118
+30 L mixers (ndpr_plant),nonlin_recovery Q_org,0.057381374876192964
+30 L mixers (ndpr_plant),d_purity Q_scrub,0.0021876286623461194
+30 L mixers (ndpr_plant),d_recovery Q_scrub,-0.09950389050073294
+30 L mixers (ndpr_plant),nonlin_purity Q_scrub,0.5170471709548956
+30 L mixers (ndpr_plant),nonlin_recovery Q_scrub,0.05957711421514225
+30 L mixers (ndpr_plant),d_purity h_scrub,0.0008035228095268909
+30 L mixers (ndpr_plant),d_recovery h_scrub,-0.04276681859507625
+30 L mixers (ndpr_plant),nonlin_purity h_scrub,0.24849270324906564
+30 L mixers (ndpr_plant),nonlin_recovery h_scrub,0.006139384772473539
+30 L mixers (ndpr_plant),d_purity saponified_fraction,-0.0015417677137224972
+30 L mixers (ndpr_plant),d_recovery saponified_fraction,0.054839477982449814
+30 L mixers (ndpr_plant),nonlin_purity saponified_fraction,0.6214298190839082
+30 L mixers (ndpr_plant),nonlin_recovery saponified_fraction,0.01519137883329169
+130 L mixers (ndpr_plant_sized),slowest time constant,1380.5836434621524
+130 L mixers (ndpr_plant_sized),d_purity Q_org,-0.0005969364326663396
+130 L mixers (ndpr_plant_sized),d_recovery Q_org,0.07998013107906232
+130 L mixers (ndpr_plant_sized),nonlin_purity Q_org,0.17772283379695333
+130 L mixers (ndpr_plant_sized),nonlin_recovery Q_org,0.0036292705473310203
+130 L mixers (ndpr_plant_sized),d_purity Q_scrub,0.0008488360409967255
+130 L mixers (ndpr_plant_sized),d_recovery Q_scrub,-0.10313693186951989
+130 L mixers (ndpr_plant_sized),nonlin_purity Q_scrub,0.23907063180826155
+130 L mixers (ndpr_plant_sized),nonlin_recovery Q_scrub,0.06867204158975697
+130 L mixers (ndpr_plant_sized),d_purity h_scrub,0.00019873287020721886
+130 L mixers (ndpr_plant_sized),d_recovery h_scrub,-0.04120924253910885
+130 L mixers (ndpr_plant_sized),nonlin_purity h_scrub,0.0834912395425201
+130 L mixers (ndpr_plant_sized),nonlin_recovery h_scrub,0.000936139209540975
+130 L mixers (ndpr_plant_sized),d_purity saponified_fraction,-0.00010376353402741234
+130 L mixers (ndpr_plant_sized),d_recovery saponified_fraction,0.04495290838267896
+130 L mixers (ndpr_plant_sized),nonlin_purity saponified_fraction,0.08455091467013433
+130 L mixers (ndpr_plant_sized),nonlin_recovery saponified_fraction,0.030370376784921375
+30 L mixers (ndpr_plant),feed_switch open_loop off_spec_mol,0.0
+30 L mixers (ndpr_plant),feed_switch open_loop lost_excess_mol,926.1058644684028
+30 L mixers (ndpr_plant),feed_switch open_loop interface_excursion_m_h,0.0
+30 L mixers (ndpr_plant),feed_switch open_loop reagent_mol,108672.90952603162
+30 L mixers (ndpr_plant),feed_switch open_loop time_to_settle_h,10.0
+30 L mixers (ndpr_plant),feed_switch mpc off_spec_mol,0.0
+30 L mixers (ndpr_plant),feed_switch mpc lost_excess_mol,8.109007980678888
+30 L mixers (ndpr_plant),feed_switch mpc interface_excursion_m_h,0.0
+30 L mixers (ndpr_plant),feed_switch mpc reagent_mol,108117.14166894765
+30 L mixers (ndpr_plant),feed_switch mpc time_to_settle_h,19.0
+30 L mixers (ndpr_plant),feed_interrupt open_loop off_spec_mol,0.0
+30 L mixers (ndpr_plant),feed_interrupt open_loop lost_excess_mol,-9.163225719626436
+30 L mixers (ndpr_plant),feed_interrupt open_loop interface_excursion_m_h,0.017499713778587847
+30 L mixers (ndpr_plant),feed_interrupt open_loop reagent_mol,108672.90952603162
+30 L mixers (ndpr_plant),feed_interrupt open_loop time_to_settle_h,10.0
+30 L mixers (ndpr_plant),feed_interrupt mpc off_spec_mol,0.0
+30 L mixers (ndpr_plant),feed_interrupt mpc lost_excess_mol,27.028237442857588
+30 L mixers (ndpr_plant),feed_interrupt mpc interface_excursion_m_h,0.01872836795468777
+30 L mixers (ndpr_plant),feed_interrupt mpc reagent_mol,102129.17342223164
+30 L mixers (ndpr_plant),feed_interrupt mpc time_to_settle_h,16.5
+30 L mixers (ndpr_plant),flowmeter_bias open_loop off_spec_mol,799.0687327200408
+30 L mixers (ndpr_plant),flowmeter_bias open_loop lost_excess_mol,-15.5214778846661
+30 L mixers (ndpr_plant),flowmeter_bias open_loop interface_excursion_m_h,0.0
+30 L mixers (ndpr_plant),flowmeter_bias open_loop reagent_mol,110154.77167146717
+30 L mixers (ndpr_plant),flowmeter_bias open_loop time_to_settle_h,38.5
+30 L mixers (ndpr_plant),flowmeter_bias mpc off_spec_mol,0.0
+30 L mixers (ndpr_plant),flowmeter_bias mpc lost_excess_mol,-4.334776314878025
+30 L mixers (ndpr_plant),flowmeter_bias mpc interface_excursion_m_h,0.0
+30 L mixers (ndpr_plant),flowmeter_bias mpc reagent_mol,109599.78657581698
+30 L mixers (ndpr_plant),flowmeter_bias mpc time_to_settle_h,0.0
+30 L mixers (ndpr_plant),interface_drift open_loop off_spec_mol,0.0
+30 L mixers (ndpr_plant),interface_drift open_loop lost_excess_mol,0.1739223189321661
+30 L mixers (ndpr_plant),interface_drift open_loop interface_excursion_m_h,11.210459419805693
+30 L mixers (ndpr_plant),interface_drift open_loop reagent_mol,108672.90952603162
+30 L mixers (ndpr_plant),interface_drift open_loop time_to_settle_h,0.0
+30 L mixers (ndpr_plant),interface_drift mpc off_spec_mol,0.0
+30 L mixers (ndpr_plant),interface_drift mpc lost_excess_mol,2.2266068931690817
+30 L mixers (ndpr_plant),interface_drift mpc interface_excursion_m_h,0.0
+30 L mixers (ndpr_plant),interface_drift mpc reagent_mol,108302.5928234565
+30 L mixers (ndpr_plant),interface_drift mpc time_to_settle_h,0.0
+130 L mixers (ndpr_plant_sized),feed_switch open_loop off_spec_mol,0.0
+130 L mixers (ndpr_plant_sized),feed_switch open_loop lost_excess_mol,80.4476408245491
+130 L mixers (ndpr_plant_sized),feed_switch open_loop interface_excursion_m_h,0.0
+130 L mixers (ndpr_plant_sized),feed_switch open_loop reagent_mol,119774.97393852897
+130 L mixers (ndpr_plant_sized),feed_switch open_loop time_to_settle_h,0.0
+130 L mixers (ndpr_plant_sized),feed_switch mpc off_spec_mol,0.0
+130 L mixers (ndpr_plant_sized),feed_switch mpc lost_excess_mol,-18.33333065999805
+130 L mixers (ndpr_plant_sized),feed_switch mpc interface_excursion_m_h,0.0
+130 L mixers (ndpr_plant_sized),feed_switch mpc reagent_mol,115090.14775724332
+130 L mixers (ndpr_plant_sized),feed_switch mpc time_to_settle_h,18.0
+130 L mixers (ndpr_plant_sized),feed_interrupt open_loop off_spec_mol,0.0
+130 L mixers (ndpr_plant_sized),feed_interrupt open_loop lost_excess_mol,-10.11720542407792
+130 L mixers (ndpr_plant_sized),feed_interrupt open_loop interface_excursion_m_h,0.01632505238795376
+130 L mixers (ndpr_plant_sized),feed_interrupt open_loop reagent_mol,119774.97393852897
+130 L mixers (ndpr_plant_sized),feed_interrupt open_loop time_to_settle_h,0.0
+130 L mixers (ndpr_plant_sized),feed_interrupt mpc off_spec_mol,0.0
+130 L mixers (ndpr_plant_sized),feed_interrupt mpc lost_excess_mol,-21.522092169952064
+130 L mixers (ndpr_plant_sized),feed_interrupt mpc interface_excursion_m_h,0.008382490859447728
+130 L mixers (ndpr_plant_sized),feed_interrupt mpc reagent_mol,122552.83759962406
+130 L mixers (ndpr_plant_sized),feed_interrupt mpc time_to_settle_h,13.5
+130 L mixers (ndpr_plant_sized),flowmeter_bias open_loop off_spec_mol,0.0
+130 L mixers (ndpr_plant_sized),flowmeter_bias open_loop lost_excess_mol,-12.317735980051316
+130 L mixers (ndpr_plant_sized),flowmeter_bias open_loop interface_excursion_m_h,0.0
+130 L mixers (ndpr_plant_sized),flowmeter_bias open_loop reagent_mol,121360.46846372081
+130 L mixers (ndpr_plant_sized),flowmeter_bias open_loop time_to_settle_h,0.0
+130 L mixers (ndpr_plant_sized),flowmeter_bias mpc off_spec_mol,0.0
+130 L mixers (ndpr_plant_sized),flowmeter_bias mpc lost_excess_mol,-12.684918865112355
+130 L mixers (ndpr_plant_sized),flowmeter_bias mpc interface_excursion_m_h,0.0
+130 L mixers (ndpr_plant_sized),flowmeter_bias mpc reagent_mol,121080.07353093963
+130 L mixers (ndpr_plant_sized),flowmeter_bias mpc time_to_settle_h,0.0
+130 L mixers (ndpr_plant_sized),interface_drift open_loop off_spec_mol,0.0
+130 L mixers (ndpr_plant_sized),interface_drift open_loop lost_excess_mol,-1.5983056773496584
+130 L mixers (ndpr_plant_sized),interface_drift open_loop interface_excursion_m_h,11.872363641774431
+130 L mixers (ndpr_plant_sized),interface_drift open_loop reagent_mol,119774.97393852897
+130 L mixers (ndpr_plant_sized),interface_drift open_loop time_to_settle_h,0.0
+130 L mixers (ndpr_plant_sized),interface_drift mpc off_spec_mol,0.0
+130 L mixers (ndpr_plant_sized),interface_drift mpc lost_excess_mol,-1.6802021421375963
+130 L mixers (ndpr_plant_sized),interface_drift mpc interface_excursion_m_h,0.0
+130 L mixers (ndpr_plant_sized),interface_drift mpc reagent_mol,119439.07899400202
+130 L mixers (ndpr_plant_sized),interface_drift mpc time_to_settle_h,0.0
+"130 L mixers (ndpr_plant_sized), 120 h",feed_switch open_loop off_spec_mol,0.0
+"130 L mixers (ndpr_plant_sized), 120 h",feed_switch open_loop lost_excess_mol,2678.1374643192385
+"130 L mixers (ndpr_plant_sized), 120 h",feed_switch open_loop interface_excursion_m_h,0.0
+"130 L mixers (ndpr_plant_sized), 120 h",feed_switch open_loop reagent_mol,359324.9218155868
+"130 L mixers (ndpr_plant_sized), 120 h",feed_switch open_loop time_to_settle_h,0.0
+"130 L mixers (ndpr_plant_sized), 120 h",feed_switch mpc off_spec_mol,0.0
+"130 L mixers (ndpr_plant_sized), 120 h",feed_switch mpc lost_excess_mol,-47.07489727745475
+"130 L mixers (ndpr_plant_sized), 120 h",feed_switch mpc interface_excursion_m_h,0.0
+"130 L mixers (ndpr_plant_sized), 120 h",feed_switch mpc reagent_mol,351280.34895415895
+"130 L mixers (ndpr_plant_sized), 120 h",feed_switch mpc time_to_settle_h,69.0
+"130 L mixers (ndpr_plant_sized), 120 h",feed_interrupt open_loop off_spec_mol,0.0
+"130 L mixers (ndpr_plant_sized), 120 h",feed_interrupt open_loop lost_excess_mol,-14.118796616172517
+"130 L mixers (ndpr_plant_sized), 120 h",feed_interrupt open_loop interface_excursion_m_h,0.01632505238795376
+"130 L mixers (ndpr_plant_sized), 120 h",feed_interrupt open_loop reagent_mol,359324.9218155868
+"130 L mixers (ndpr_plant_sized), 120 h",feed_interrupt open_loop time_to_settle_h,0.0
+"130 L mixers (ndpr_plant_sized), 120 h",feed_interrupt mpc off_spec_mol,0.0
+"130 L mixers (ndpr_plant_sized), 120 h",feed_interrupt mpc lost_excess_mol,-41.67931650287995
+"130 L mixers (ndpr_plant_sized), 120 h",feed_interrupt mpc interface_excursion_m_h,0.008382490859447728
+"130 L mixers (ndpr_plant_sized), 120 h",feed_interrupt mpc reagent_mol,367804.36665328394
+"130 L mixers (ndpr_plant_sized), 120 h",feed_interrupt mpc time_to_settle_h,24.0
+"130 L mixers (ndpr_plant_sized), 120 h",flowmeter_bias open_loop off_spec_mol,0.0
+"130 L mixers (ndpr_plant_sized), 120 h",flowmeter_bias open_loop lost_excess_mol,-38.66749426194947
+"130 L mixers (ndpr_plant_sized), 120 h",flowmeter_bias open_loop interface_excursion_m_h,0.0
+"130 L mixers (ndpr_plant_sized), 120 h",flowmeter_bias open_loop reagent_mol,364508.70178802276
+"130 L mixers (ndpr_plant_sized), 120 h",flowmeter_bias open_loop time_to_settle_h,98.0
+"130 L mixers (ndpr_plant_sized), 120 h",flowmeter_bias mpc off_spec_mol,0.0
+"130 L mixers (ndpr_plant_sized), 120 h",flowmeter_bias mpc lost_excess_mol,-32.65166361097933
+"130 L mixers (ndpr_plant_sized), 120 h",flowmeter_bias mpc interface_excursion_m_h,0.0
+"130 L mixers (ndpr_plant_sized), 120 h",flowmeter_bias mpc reagent_mol,362733.89841810125
+"130 L mixers (ndpr_plant_sized), 120 h",flowmeter_bias mpc time_to_settle_h,61.5
+"130 L mixers (ndpr_plant_sized), 120 h",interface_drift open_loop off_spec_mol,0.0
+"130 L mixers (ndpr_plant_sized), 120 h",interface_drift open_loop lost_excess_mol,-5.100903788604138
+"130 L mixers (ndpr_plant_sized), 120 h",interface_drift open_loop interface_excursion_m_h,42.04866987091772
+"130 L mixers (ndpr_plant_sized), 120 h",interface_drift open_loop reagent_mol,359324.9218155868
+"130 L mixers (ndpr_plant_sized), 120 h",interface_drift open_loop time_to_settle_h,0.0
+"130 L mixers (ndpr_plant_sized), 120 h",interface_drift mpc off_spec_mol,0.0
+"130 L mixers (ndpr_plant_sized), 120 h",interface_drift mpc lost_excess_mol,-4.239433458032197
+"130 L mixers (ndpr_plant_sized), 120 h",interface_drift mpc interface_excursion_m_h,0.0
+"130 L mixers (ndpr_plant_sized), 120 h",interface_drift mpc reagent_mol,357067.12168984243
+"130 L mixers (ndpr_plant_sized), 120 h",interface_drift mpc time_to_settle_h,0.0

@@ -1,0 +1,48 @@
+# Idaho-size circuit (Lyon 2016, Fig. 21: 18 stages, 12 scrub), reflux scrub, didymium feed. Small and
+# fast: the circuit controller work is developed on. Recovery target = 90 % of what this size can do.
+# Design step (notebooks/02_design_baselines.py, run 2026-10-08): minimize reagent subject to
+# steady state, Nd purity >= 0.995, Nd recovery >= 0.047, input bounds; organic flow capped at
+# 85% of the 4700 L/h pump maximum so a controller has headroom (both chosen).
+# Measured on the model at this point: purity 0.9950, recovery 0.0473, reagent 1458 mol/h.
+# Regenerate rather than hand-edit the numbers.
+name = "prnd_small"
+description = "The Idaho-size Pr | Nd circuit (Lyon 2016: 18 stages, 12 scrub), didymium feed. Small and fast; at this size Nd recovery is only about 5 %."
+
+[circuit]
+n_ext = 2
+n_scrub = 12
+n_strip = 4
+organic_recycle = true
+model = "fast"
+cut = "Pr"
+
+[feed]
+deposit = "eneabba"
+total_RE_g_per_L = 50.0
+acid = 0.05
+removed_upstream = ["LaCe", "SmPlus"]
+
+[flows]                         # L/h
+organic = 600.0
+feed = 600.0
+scrub = 132.8                  # reflux: strip product sent back as scrub liquor
+strip = 432.8                  # = 300 net product + scrub reflux
+
+[scrub]
+acid = 2.0000
+metal = "reflux"
+
+[strip]
+acid = 2.0
+
+[saponification]
+mode = "simple"
+fraction = 0.5448
+
+[targets]
+purity = 0.99                   # spec; the design point sits at 0.995
+recovery = 0.047
+
+[sim]
+t_end = 40.0
+dt_out = 0.25

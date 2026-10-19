@@ -1,0 +1,41 @@
+# The main case: NdPr as one product. The cut is Ce | Pr: La and Ce to the raffinate,
+# Pr and Nd together to the product. Sm and heavier are taken off upstream (the Nd | Sm cut,
+# which a plant does first). Feed: full Eneabba monazite liquor (Carester Table 1).
+# Circuit size here is a placeholder; the stage sweep (04) sizes it and 02 writes ndpr_plant.
+name = "ndpr_sweep_base_yangibana"
+description = "The starting point of the NdPr design on the Yangibana feed (about 41 % Pr and Nd): the same as ndpr_sweep_base with the richer published deposit. Not meant to be run as it is."
+
+[circuit]
+n_ext = 4
+n_scrub = 8
+n_strip = 4
+organic_recycle = true
+model = "fast"
+cut = "LaCe"                    # LaCe and lighter to raffinate; Pr, Nd (and heavier) to product
+
+[feed]
+deposit = "yangibana"
+total_RE_g_per_L = 50.0         # chosen: same strength as the Pr|Nd case
+acid = 0.05
+removed_upstream = ["SmPlus"]   # the Nd|Sm cut is done before this circuit
+
+[flows]                         # L/h; starting values for the optimizer
+organic = 1200.0
+feed = 600.0
+scrub = 300.0
+strip = 600.0                   # = 300 net product + scrub reflux
+
+[scrub]
+acid = 0.5
+metal = "reflux"
+
+[strip]
+acid = 2.0
+
+[saponification]
+mode = "simple"
+fraction = 0.4
+
+[sim]
+t_end = 60.0
+dt_out = 0.25

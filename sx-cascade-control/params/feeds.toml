@@ -1,0 +1,80 @@
+# Rare earth distribution of typical deposits, % of total RE oxide.
+# Source: Rollat, Bertuol, Leveque, "Improvements in Rare Earth Separation",
+# Proc. 63rd Conference of Metallurgists (COM 2024), pp. 1529-1532, Table 1.
+# DOI 10.1007/978-3-031-67398-6_245
+# Kind: measured (published). Transcribed from the table image, Oct 8 2026.
+#
+# Note: the paper labels the heavy group "(Ho,Er,Tm,Tb,Lu)2O3"; Tb already has
+# its own row, so this is read as a typo for Yb.
+
+[eneabba]
+country = "Australia"
+mineral = "monazite"
+La2O3_CeO2 = 68.5
+Pr6O11 = 5.4
+Nd2O3 = 15.7
+Sm_Eu_Gd_2O3 = 4.66
+Tb4O7 = 0.2
+Dy2O3 = 1.07
+Ho_Er_Tm_Yb_Lu_2O3 = 0.89
+Y2O3 = 3.49
+
+[yangibana]
+country = "Australia"
+mineral = "monazite / bastnasite"
+La2O3_CeO2 = 52.2
+Pr6O11 = 7.8
+Nd2O3 = 33.3
+Sm_Eu_Gd_2O3 = 5.50
+Tb4O7 = 0.12
+Dy2O3 = 0.32
+Ho_Er_Tm_Yb_Lu_2O3 = 0.14
+Y2O3 = 0.71
+
+[mountain_pass]
+country = "USA"
+mineral = "bastnasite"
+La2O3_CeO2 = 82.3
+Pr6O11 = 4.3
+Nd2O3 = 12.0
+Sm_Eu_Gd_2O3 = 1.09
+Tb4O7 = 0.0          # blank in the table
+Dy2O3 = 0.0          # blank in the table
+Ho_Er_Tm_Yb_Lu_2O3 = 0.00
+Y2O3 = 0.10
+
+[strange_lake]
+country = "Canada (Quebec)"
+mineral = "kainosite, gerenite, gadolinite"
+La2O3_CeO2 = 39.5
+Pr6O11 = 3.1
+Nd2O3 = 9.9
+Sm_Eu_Gd_2O3 = 3.67
+Tb4O7 = 0.9
+Dy2O3 = 4.3
+Ho_Er_Tm_Yb_Lu_2O3 = 8.26
+Y2O3 = 30.3
+
+[pela_ema]
+country = "Brazil"
+mineral = "ionic ore"
+La2O3_CeO2 = 49.8
+Pr6O11 = 4.9
+Nd2O3 = 15.9
+Sm_Eu_Gd_2O3 = 5.30
+Tb4O7 = 0.2
+Dy2O3 = 2.3
+Ho_Er_Tm_Yb_Lu_2O3 = 3.60
+Y2O3 = 18.0
+
+[browns_range]
+country = "Australia"
+mineral = "xenotime"
+La2O3_CeO2 = 7.4
+Pr6O11 = 0.74
+Nd2O3 = 3.36
+Sm_Eu_Gd_2O3 = 8.49
+Tb4O7 = 1.29
+Dy2O3 = 8.61
+Ho_Er_Tm_Yb_Lu_2O3 = 12.81
+Y2O3 = 56.92

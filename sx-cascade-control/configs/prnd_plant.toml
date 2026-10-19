@@ -1,0 +1,48 @@
+# Plant-like baseline: the ECJTU-size circuit (US 11,214,850 B2: 26 extraction + 34 scrub, feed 10 L/min;
+# 4 strip stages chosen), reflux scrub, didymium feed.
+# Design step (notebooks/02_design_baselines.py, run 2026-10-08): minimize reagent subject to
+# steady state, Nd purity >= 0.995, Nd recovery >= 0.950, input bounds; organic flow capped at
+# 85% of the 4700 L/h pump maximum so a controller has headroom (both chosen).
+# Measured on the model at this point: purity 0.9950, recovery 0.9500, reagent 4060 mol/h.
+# Regenerate rather than hand-edit the numbers.
+name = "prnd_plant"
+description = "The Pr | Nd split (product Nd) on the ECJTU-size circuit, 26 + 34 + 4 stages, reflux scrub, didymium feed, designed at 99.5 % / 95 %. Used to check the model against the published Pr | Nd data; not the main case."
+
+[circuit]
+n_ext = 26
+n_scrub = 34
+n_strip = 4
+organic_recycle = true
+model = "fast"
+cut = "Pr"
+
+[feed]
+deposit = "eneabba"
+total_RE_g_per_L = 50.0
+acid = 0.05
+removed_upstream = ["LaCe", "SmPlus"]
+
+[flows]                         # L/h
+organic = 3771.9
+feed = 600.0
+scrub = 398.6                  # reflux: strip product sent back as scrub liquor
+strip = 698.6                  # = 300 net product + scrub reflux
+
+[scrub]
+acid = 2.0000
+metal = "reflux"
+
+[strip]
+acid = 2.0
+
+[saponification]
+mode = "simple"
+fraction = 0.4945
+
+[targets]
+purity = 0.99                   # spec; the design point sits at 0.995
+recovery = 0.950
+
+[sim]
+t_end = 60.0
+dt_out = 0.25

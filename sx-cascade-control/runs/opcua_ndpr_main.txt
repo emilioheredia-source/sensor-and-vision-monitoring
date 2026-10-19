@@ -1,0 +1,4 @@
+intervals: 160 over OPC UA, 160 in one process
+largest difference in any handle: 0; in the plant's final state: 0
+wall time: 122 s over OPC UA (49 s of it waiting for the plant), 109 s in one process
+historian: 7678 samples of 51 tags (67 changes of the organic setpoint)

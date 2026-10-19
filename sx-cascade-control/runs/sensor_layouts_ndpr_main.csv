@@ -1,0 +1,12 @@
+layout,phase,se beta Pr/(La+Ce),se beta Nd/Pr,"se rate, extraction","se rate, scrub","se rate, strip",condition number
+XRF ends only,aqueous,inf,inf,inf,inf,inf,4.8e+15
+"optical 2, 4, 6 (notebook 31)",aqueous,0.0044,0.0115,0.6083,24.8534,24.5111,2.87e+11
+"optical 2, 4, 6 (notebook 31)",organic,0.0042,0.0136,0.7609,19.7499,19.3031,1.79e+11
+"optical 2, 6 + scrub 12",aqueous,0.0036,0.0059,0.4494,3.8973,3.5671,6.73e+09
+"optical 2, 6 + scrub 12",organic,0.0037,0.0099,0.6862,4.2257,3.7492,7.67e+09
+"optical 4 + scrub 10, 16",aqueous,0.0013,0.0061,0.3997,0.4315,0.3728,9.18e+07
+"optical 4 + scrub 10, 16",organic,0.0017,0.0096,0.5945,0.4698,0.6146,1.8e+08
+"optical 2, 6 + scrub 12, 20",aqueous,0.0005,0.0035,0.2189,0.1916,0.3723,9.95e+07
+"optical 2, 6 + scrub 12, 20",organic,0.0005,0.0055,0.3243,0.2612,0.4904,1.29e+08
+"optical 2, 6 + scrub 12 + strip 30",aqueous,0.0008,0.0049,0.2967,0.2920,0.0053,4.17e+07
+"optical 2, 6 + scrub 12 + strip 30",organic,0.0009,0.0080,0.4788,0.4700,0.0034,1.08e+08

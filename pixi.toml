@@ -1,10 +1,15 @@
 [workspace]
 name = "process-monitoring-demos"
-description = "Reading machine condition from sensors and from images"
+description = "Reading machine condition from sensors and from images; a solvent extraction cascade with MPC on top"
 authors = ["Emilio Heredia <emilioheredia@gmail.com>"]
 channels = ["conda-forge"]
 platforms = ["win-64", "linux-64", "osx-64"]
 version = "1.0.0"
+
+[activation.env]            # the simulations are one-thread work; idle BLAS/torch threads only fight each other
+OMP_NUM_THREADS = "2"
+OPENBLAS_NUM_THREADS = "2"
+MKL_NUM_THREADS = "2"
 
 [dependencies]
 python = "3.12.*"
@@ -14,3 +19,22 @@ scikit-learn = ">=1.5"
 matplotlib = ">=3.8"
 pyqt = ">=5.15"
 opencv = ">=4.10"
+scipy = ">=1.13"
+casadi = ">=3.7"
+do-mpc = ">=5.1"
+pytest = ">=8"
+pyqtgraph = ">=0.13,<0.14"
+pytorch = ">=2.4"           # the learned estimator (sx-cascade-control, notebook 35)
+asyncua = ">=1.1"           # the plant over OPC UA (sx-cascade-control, src/plant_server.py)
+
+[feature.rl.dependencies]
+gymnasium = ">=1.0"
+stable-baselines3 = ">=2.4"
+
+[environments]
+rl = ["rl"]
+
+[tasks]
+# The sx-cascade-control workbench: pick a plant, controller, upset and sensor set, run and watch.
+# Extra arguments pass through, e.g.  pixi run workbench --config ndpr_plant
+workbench = { cmd = "python -m workbench", cwd = "sx-cascade-control" }

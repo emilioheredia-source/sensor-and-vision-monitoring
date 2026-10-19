@@ -1,0 +1,39 @@
+# The ECJTU patent circuit: US 11,214,850 B2, 60 stages = 26 extraction + 34 scrub ("washing"),
+# feed 10 L/min. The patent gives no strip count; 6 chosen. Same feed and reagents as prnd_sweep_base.
+name = "prnd_ecjtu"
+description = "The Pr | Nd split on the ECJTU patent circuit (US 11,214,850 B2: 26 extraction + 34 scrub; 6 strip stages chosen), didymium feed. A check of the model against a published circuit."
+
+[circuit]
+n_ext = 26
+n_scrub = 34
+n_strip = 6
+organic_recycle = true
+model = "fast"
+cut = "Pr"
+
+[feed]
+deposit = "eneabba"
+total_RE_g_per_L = 50.0
+acid = 0.05
+removed_upstream = ["LaCe", "SmPlus"]
+
+[flows]
+organic = 1200.0                # O/A 2: 0.167 M capacity x 1200 L/h carries the 0.26 M x 600 L/h of Nd at ~80 % loading
+feed = 600.0
+scrub = 300.0
+strip = 300.0
+
+[scrub]
+acid = 0.5
+metal = "none"
+
+[strip]
+acid = 2.0
+
+[saponification]
+mode = "simple"
+fraction = 0.4
+
+[sim]
+t_end = 100.0
+dt_out = 0.1

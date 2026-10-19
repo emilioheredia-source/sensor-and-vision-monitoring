@@ -13,3 +13,15 @@ __pycache__/
 # OS
 Thumbs.db
 desktop.ini
+
+# sx-cascade-control: simulation results are reproducible from the run file saved with each;
+# the result tables, the reference runs and the trained RL controller are kept
+*/runs/*
+!*/runs/*.csv
+!*/runs/*.npz
+!*/runs/rl_*/
+# the workbench's session logs, named layouts and the backups it keeps of edited files
+sx-cascade-control/logs/
+sx-cascade-control/layouts/
+*.toml.bak
+.pytest_cache/

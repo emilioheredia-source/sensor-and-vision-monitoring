@@ -1,0 +1,2 @@
+seed,upset,controller,off_spec_mol,lost_excess_mol,interface_excursion_m_h,reagent_mol,time_to_settle_h,solver_failures,seconds
+4,feed_acid,open_loop_level_loops,0.0,265.5785127994812,0.0,273819.0851441396,14.0,0,30.3

@@ -1,0 +1,40 @@
+# The Idaho thesis expanded flowsheet, scaled to plant flows.
+# Lyon 2016, Fig. 21: 18 stages, 12 of them scrub, 99.7 % Nd from a 25/75 Pr/Nd feed.
+# Extraction/strip split (2 / 4) chosen: the thesis's 10-stage version was 2 / 4 / 4.
+name = "prnd_sweep_base"
+description = "The starting point of the Pr | Nd stage sweep: the Idaho thesis flowsheet scaled to plant flows. Not meant to be run as it is."
+
+[circuit]
+n_ext = 2
+n_scrub = 12
+n_strip = 4
+organic_recycle = true
+model = "fast"          # "exact" not built yet
+cut = "Pr"              # Pr and lighter to raffinate, Nd and heavier to product
+
+[feed]
+deposit = "eneabba"             # Carester Table 1, monazite
+total_RE_g_per_L = 50.0         # chosen: Idaho ran 50 g/L didymium
+acid = 0.05                     # mol/L, chosen: inside Idaho's 0.01-0.3 range
+removed_upstream = ["LaCe", "SmPlus"]   # Pr|Nd is the last cut; its feed is didymium (Pr:Nd 26:74 here)
+
+[flows]                         # L/h; ECJTU feed is 10 L/min = 600 L/h
+organic = 1200.0                # O/A 2: 0.167 M capacity x 1200 L/h carries the 0.26 M x 600 L/h of Nd at ~80 % loading
+feed = 600.0
+scrub = 300.0
+strip = 300.0
+
+[scrub]
+acid = 0.5                      # mol/L, chosen
+metal = "none"                  # acid-only scrub here; "reflux" (strip product sent back) is the other option
+
+[strip]
+acid = 2.0                      # mol/L, chosen: Idaho says 1 M HCl strips quantitatively
+
+[saponification]
+mode = "simple"                 # equivalent base dose at organic entry
+fraction = 0.4                  # of the extractant monomer, chosen: neutralizes ~3 x the Nd extracted; Idaho used 0.167 at O/A 5
+
+[sim]
+t_end = 60.0                    # h; not read by the code (each study sets its own length)
+dt_out = 0.1

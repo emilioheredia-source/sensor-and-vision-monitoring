@@ -1,6 +1,25 @@
-# Process monitoring and machine vision
+# Process monitoring, control and machine vision
 
-Two projects reading machine condition, one from sensors and one from a camera.
+Three projects: a rare earth separation plant simulated from its chemistry with
+a controller on top, machine condition read from sensors, and a liquid level
+read from a camera.
+
+## sx-cascade-control
+
+A rare earth solvent extraction circuit, built on a computer from the chemistry
+and published data, with a model predictive controller on top. It splits
+lanthanum and cerium from the NdPr magnet metals over 32 mixer-settler stages.
+
+<img src="sx-cascade-control/figures/diag_flowsheet.png" width="600" alt="the circuit: extraction, scrub and strip sections and the streams between them">
+
+The controller is tested on twenty plants that differ from its model inside
+published ranges, eight upsets each, and on a harder plant built from a 2018
+textbook. The work also looks at where instruments pay off, at learning the
+plant's numbers from its readings with a person reviewing each update, at
+putting a controller onto a plant in steps, and at an OPC UA link with a
+historian. It's a simulation; none of it is plant data.
+
+**[Write-up, method and results →](sx-cascade-control/README.md)**
 
 ## process-anomaly-detector
 
@@ -33,7 +52,8 @@ reading, and across five different lightings and ten repeat shots.
 ## Running them
 
 Each project has its own tools and its own `Running it` section in its README.
-One pixi environment covers both.
+One pixi environment covers all three. The sx-cascade-control workbench starts
+with `pixi run workbench`.
 
 ```powershell
 pixi install

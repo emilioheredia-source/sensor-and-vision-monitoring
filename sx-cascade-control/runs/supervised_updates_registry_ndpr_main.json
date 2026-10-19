@@ -1,0 +1,671 @@
+{
+ "active": 13,
+ "versions": [
+  {
+   "id": 0,
+   "t": 0.0,
+   "params": {
+    "log_beta_pr_lace": 0.0,
+    "log_beta_nd_pr": 0.0,
+    "log_k": 0.0
+   },
+   "source": "nominal model",
+   "checks": {},
+   "status": "retired",
+   "reviewer": "commissioning",
+   "note": ""
+  },
+  {
+   "id": 1,
+   "t": 24.0,
+   "params": {
+    "log_beta_pr_lace": -0.12166892494309064,
+    "log_beta_nd_pr": 0.22100692111704795,
+    "log_k": -0.04764305867878235
+   },
+   "source": "daily fit, day 1",
+   "checks": {
+    "step": {
+     "passed": false,
+     "detail": "log_beta_pr_lace moved 0.122 (limit 0.05), log_beta_nd_pr moved 0.221 (limit 0.05), log_k moved 0.048 (limit 0.25)",
+     "decides": true
+    },
+    "bounds": {
+     "passed": true,
+     "detail": "none on a bound",
+     "decides": true
+    },
+    "residual": {
+     "passed": false,
+     "detail": "924.58 per reading (for reference: 4.0)",
+     "decides": false
+    },
+    "range": {
+     "passed": true,
+     "detail": "separation factors 1.771, 1.889",
+     "decides": true
+    }
+   },
+   "status": "retired",
+   "reviewer": "reviewer (scripted)",
+   "note": "first identification"
+  },
+  {
+   "id": 2,
+   "t": 48.0,
+   "params": {
+    "log_beta_pr_lace": -0.11396588296283229,
+    "log_beta_nd_pr": 0.2085353364011033,
+    "log_k": -0.04662063811998161
+   },
+   "source": "daily fit, day 2",
+   "checks": {
+    "step": {
+     "passed": true,
+     "detail": "log_beta_pr_lace moved 0.008 (limit 0.05), log_beta_nd_pr moved 0.012 (limit 0.05), log_k moved 0.001 (limit 0.25)",
+     "decides": true
+    },
+    "bounds": {
+     "passed": true,
+     "detail": "none on a bound",
+     "decides": true
+    },
+    "residual": {
+     "passed": false,
+     "detail": "383.09 per reading (for reference: 4.0)",
+     "decides": false
+    },
+    "range": {
+     "passed": true,
+     "detail": "separation factors 1.785, 1.865",
+     "decides": true
+    }
+   },
+   "status": "retired",
+   "reviewer": "reviewer (scripted)",
+   "note": "all checks pass"
+  },
+  {
+   "id": 3,
+   "t": 72.0,
+   "params": {
+    "log_beta_pr_lace": -0.10660171101647506,
+    "log_beta_nd_pr": 0.20516397832467323,
+    "log_k": -0.04608083056806337
+   },
+   "source": "daily fit, day 3",
+   "checks": {
+    "step": {
+     "passed": true,
+     "detail": "log_beta_pr_lace moved 0.007 (limit 0.05), log_beta_nd_pr moved 0.003 (limit 0.05), log_k moved 0.001 (limit 0.25)",
+     "decides": true
+    },
+    "bounds": {
+     "passed": true,
+     "detail": "none on a bound",
+     "decides": true
+    },
+    "residual": {
+     "passed": false,
+     "detail": "341.41 per reading (for reference: 4.0)",
+     "decides": false
+    },
+    "range": {
+     "passed": true,
+     "detail": "separation factors 1.798, 1.859",
+     "decides": true
+    }
+   },
+   "status": "retired",
+   "reviewer": "reviewer (scripted)",
+   "note": "all checks pass"
+  },
+  {
+   "id": 4,
+   "t": 96.0,
+   "params": {
+    "log_beta_pr_lace": -0.09883480230292781,
+    "log_beta_nd_pr": 0.20532290062068065,
+    "log_k": -0.045705420331495404
+   },
+   "source": "daily fit, day 4",
+   "checks": {
+    "step": {
+     "passed": true,
+     "detail": "log_beta_pr_lace moved 0.008 (limit 0.05), log_beta_nd_pr moved 0.000 (limit 0.05), log_k moved 0.000 (limit 0.25)",
+     "decides": true
+    },
+    "bounds": {
+     "passed": true,
+     "detail": "none on a bound",
+     "decides": true
+    },
+    "residual": {
+     "passed": false,
+     "detail": "360.58 per reading (for reference: 4.0)",
+     "decides": false
+    },
+    "range": {
+     "passed": true,
+     "detail": "separation factors 1.812, 1.859",
+     "decides": true
+    }
+   },
+   "status": "retired",
+   "reviewer": "reviewer (scripted)",
+   "note": "all checks pass"
+  },
+  {
+   "id": 5,
+   "t": 120.0,
+   "params": {
+    "log_beta_pr_lace": -0.09047732669488423,
+    "log_beta_nd_pr": 0.17312737345585397,
+    "log_k": -0.04404440838664698
+   },
+   "source": "daily fit, day 5",
+   "checks": {
+    "step": {
+     "passed": true,
+     "detail": "log_beta_pr_lace moved 0.008 (limit 0.05), log_beta_nd_pr moved 0.032 (limit 0.05), log_k moved 0.002 (limit 0.25)",
+     "decides": true
+    },
+    "bounds": {
+     "passed": true,
+     "detail": "none on a bound",
+     "decides": true
+    },
+    "residual": {
+     "passed": false,
+     "detail": "155.57 per reading (for reference: 4.0)",
+     "decides": false
+    },
+    "range": {
+     "passed": true,
+     "detail": "separation factors 1.827, 1.800",
+     "decides": true
+    }
+   },
+   "status": "retired",
+   "reviewer": "reviewer (scripted)",
+   "note": "all checks pass"
+  },
+  {
+   "id": 6,
+   "t": 144.0,
+   "params": {
+    "log_beta_pr_lace": -0.08836990759567181,
+    "log_beta_nd_pr": 0.17438411058740286,
+    "log_k": -0.04142061527720286
+   },
+   "source": "daily fit, day 6",
+   "checks": {
+    "step": {
+     "passed": true,
+     "detail": "log_beta_pr_lace moved 0.002 (limit 0.05), log_beta_nd_pr moved 0.001 (limit 0.05), log_k moved 0.003 (limit 0.25)",
+     "decides": true
+    },
+    "bounds": {
+     "passed": true,
+     "detail": "none on a bound",
+     "decides": true
+    },
+    "residual": {
+     "passed": false,
+     "detail": "100.28 per reading (for reference: 4.0)",
+     "decides": false
+    },
+    "range": {
+     "passed": true,
+     "detail": "separation factors 1.831, 1.803",
+     "decides": true
+    }
+   },
+   "status": "retired",
+   "reviewer": "reviewer (scripted)",
+   "note": "all checks pass"
+  },
+  {
+   "id": 7,
+   "t": 168.0,
+   "params": {
+    "log_beta_pr_lace": -0.08598250056135973,
+    "log_beta_nd_pr": 0.16047293721200132,
+    "log_k": -0.04082696102534385
+   },
+   "source": "daily fit, day 7",
+   "checks": {
+    "step": {
+     "passed": true,
+     "detail": "log_beta_pr_lace moved 0.002 (limit 0.05), log_beta_nd_pr moved 0.014 (limit 0.05), log_k moved 0.001 (limit 0.25)",
+     "decides": true
+    },
+    "bounds": {
+     "passed": true,
+     "detail": "none on a bound",
+     "decides": true
+    },
+    "residual": {
+     "passed": false,
+     "detail": "57.59 per reading (for reference: 4.0)",
+     "decides": false
+    },
+    "range": {
+     "passed": true,
+     "detail": "separation factors 1.835, 1.778",
+     "decides": true
+    }
+   },
+   "status": "retired",
+   "reviewer": "reviewer (scripted)",
+   "note": "all checks pass"
+  },
+  {
+   "id": 8,
+   "t": 192.0,
+   "params": {
+    "log_beta_pr_lace": -0.1441946645997467,
+    "log_beta_nd_pr": 0.14270824550344371,
+    "log_k": -0.0643427678114135
+   },
+   "source": "daily fit, day 8",
+   "checks": {
+    "step": {
+     "passed": false,
+     "detail": "log_beta_pr_lace moved 0.058 (limit 0.05), log_beta_nd_pr moved 0.018 (limit 0.05), log_k moved 0.024 (limit 0.25)",
+     "decides": true
+    },
+    "bounds": {
+     "passed": true,
+     "detail": "none on a bound",
+     "decides": true
+    },
+    "residual": {
+     "passed": false,
+     "detail": "38.46 per reading (for reference: 4.0)",
+     "decides": false
+    },
+    "range": {
+     "passed": true,
+     "detail": "separation factors 1.731, 1.746",
+     "decides": true
+    }
+   },
+   "status": "rejected",
+   "reviewer": "reviewer (scripted)",
+   "note": "checks failed: log_beta_pr_lace moved 0.058 (limit 0.05), log_beta_nd_pr moved 0.018 (limit 0.05), log_k moved 0.024 (limit 0.25)"
+  },
+  {
+   "id": 9,
+   "t": 216.0,
+   "params": {
+    "log_beta_pr_lace": -0.14354848905619025,
+    "log_beta_nd_pr": 0.18192897382329712,
+    "log_k": -0.030294662145030397
+   },
+   "source": "daily fit, day 9",
+   "checks": {
+    "step": {
+     "passed": false,
+     "detail": "log_beta_pr_lace moved 0.058 (limit 0.05), log_beta_nd_pr moved 0.021 (limit 0.05), log_k moved 0.011 (limit 0.25)",
+     "decides": true
+    },
+    "bounds": {
+     "passed": true,
+     "detail": "none on a bound",
+     "decides": true
+    },
+    "residual": {
+     "passed": false,
+     "detail": "81.98 per reading (for reference: 4.0)",
+     "decides": false
+    },
+    "range": {
+     "passed": true,
+     "detail": "separation factors 1.733, 1.816",
+     "decides": true
+    }
+   },
+   "status": "rejected",
+   "reviewer": "reviewer (scripted)",
+   "note": "checks failed: log_beta_pr_lace moved 0.058 (limit 0.05), log_beta_nd_pr moved 0.021 (limit 0.05), log_k moved 0.011 (limit 0.25)"
+  },
+  {
+   "id": 10,
+   "t": 240.0,
+   "params": {
+    "log_beta_pr_lace": -0.12232260362370666,
+    "log_beta_nd_pr": 0.16767217498976028,
+    "log_k": -0.013424066033281104
+   },
+   "source": "daily fit, day 10",
+   "checks": {
+    "step": {
+     "passed": true,
+     "detail": "log_beta_pr_lace moved 0.036 (limit 0.05), log_beta_nd_pr moved 0.007 (limit 0.05), log_k moved 0.027 (limit 0.25)",
+     "decides": true
+    },
+    "bounds": {
+     "passed": true,
+     "detail": "none on a bound",
+     "decides": true
+    },
+    "residual": {
+     "passed": false,
+     "detail": "59.81 per reading (for reference: 4.0)",
+     "decides": false
+    },
+    "range": {
+     "passed": true,
+     "detail": "separation factors 1.770, 1.791",
+     "decides": true
+    }
+   },
+   "status": "retired",
+   "reviewer": "reviewer (scripted)",
+   "note": "all checks pass"
+  },
+  {
+   "id": 11,
+   "t": 264.0,
+   "params": {
+    "log_beta_pr_lace": -0.12840386597085388,
+    "log_beta_nd_pr": 0.13452718613088205,
+    "log_k": -0.012741162111654741
+   },
+   "source": "daily fit, day 11",
+   "checks": {
+    "step": {
+     "passed": true,
+     "detail": "log_beta_pr_lace moved 0.006 (limit 0.05), log_beta_nd_pr moved 0.033 (limit 0.05), log_k moved 0.001 (limit 0.25)",
+     "decides": true
+    },
+    "bounds": {
+     "passed": true,
+     "detail": "none on a bound",
+     "decides": true
+    },
+    "residual": {
+     "passed": false,
+     "detail": "9.44 per reading (for reference: 4.0)",
+     "decides": false
+    },
+    "range": {
+     "passed": true,
+     "detail": "separation factors 1.759, 1.732",
+     "decides": true
+    }
+   },
+   "status": "retired",
+   "reviewer": "reviewer (scripted)",
+   "note": "all checks pass"
+  },
+  {
+   "id": 12,
+   "t": 288.0,
+   "params": {
+    "log_beta_pr_lace": -0.1262917079066004,
+    "log_beta_nd_pr": 0.15787010339019292,
+    "log_k": 0.017844727073661623
+   },
+   "source": "daily fit, day 12",
+   "checks": {
+    "step": {
+     "passed": true,
+     "detail": "log_beta_pr_lace moved 0.002 (limit 0.05), log_beta_nd_pr moved 0.023 (limit 0.05), log_k moved 0.031 (limit 0.25)",
+     "decides": true
+    },
+    "bounds": {
+     "passed": true,
+     "detail": "none on a bound",
+     "decides": true
+    },
+    "residual": {
+     "passed": false,
+     "detail": "12.13 per reading (for reference: 4.0)",
+     "decides": false
+    },
+    "range": {
+     "passed": true,
+     "detail": "separation factors 1.763, 1.773",
+     "decides": true
+    }
+   },
+   "status": "retired",
+   "reviewer": "reviewer (scripted)",
+   "note": "all checks pass"
+  },
+  {
+   "id": 13,
+   "t": 312.0,
+   "params": {
+    "log_beta_pr_lace": -0.12235944686299087,
+    "log_beta_nd_pr": 0.1488732071661179,
+    "log_k": 0.01809909710520748
+   },
+   "source": "daily fit, day 13",
+   "checks": {
+    "step": {
+     "passed": true,
+     "detail": "log_beta_pr_lace moved 0.004 (limit 0.05), log_beta_nd_pr moved 0.009 (limit 0.05), log_k moved 0.000 (limit 0.25)",
+     "decides": true
+    },
+    "bounds": {
+     "passed": true,
+     "detail": "none on a bound",
+     "decides": true
+    },
+    "residual": {
+     "passed": false,
+     "detail": "18.20 per reading (for reference: 4.0)",
+     "decides": false
+    },
+    "range": {
+     "passed": true,
+     "detail": "separation factors 1.770, 1.757",
+     "decides": true
+    }
+   },
+   "status": "active",
+   "reviewer": "reviewer (scripted)",
+   "note": "all checks pass"
+  },
+  {
+   "id": 14,
+   "t": 336.0,
+   "params": {
+    "log_beta_pr_lace": -0.15095814132481308,
+    "log_beta_nd_pr": 0.09179696760507569,
+    "log_k": 0.4999999995462215
+   },
+   "source": "daily fit, day 14",
+   "checks": {
+    "step": {
+     "passed": false,
+     "detail": "log_beta_pr_lace moved 0.029 (limit 0.05), log_beta_nd_pr moved 0.057 (limit 0.05), log_k moved 0.482 (limit 0.25)",
+     "decides": true
+    },
+    "bounds": {
+     "passed": false,
+     "detail": "on its bound: log_k",
+     "decides": true
+    },
+    "residual": {
+     "passed": false,
+     "detail": "62.61 per reading (for reference: 4.0)",
+     "decides": false
+    },
+    "range": {
+     "passed": true,
+     "detail": "separation factors 1.720, 1.660",
+     "decides": true
+    }
+   },
+   "status": "rejected",
+   "reviewer": "reviewer (scripted)",
+   "note": "checks failed: log_beta_pr_lace moved 0.029 (limit 0.05), log_beta_nd_pr moved 0.057 (limit 0.05), log_k moved 0.482 (limit 0.25); on its bound: log_k"
+  }
+ ],
+ "journal": [
+  {
+   "t": 0.0,
+   "event": "version 0 active (nominal model)"
+  },
+  {
+   "t": 24.0,
+   "event": "version 1 proposed (daily fit, day 1); deciding checks failed: step"
+  },
+  {
+   "t": 24.0,
+   "event": "version 1 approved by reviewer (scripted): first identification"
+  },
+  {
+   "t": 24.0,
+   "event": "version 1 active"
+  },
+  {
+   "t": 48.0,
+   "event": "version 2 proposed (daily fit, day 2); deciding checks failed: none"
+  },
+  {
+   "t": 48.0,
+   "event": "version 2 approved by reviewer (scripted): all checks pass"
+  },
+  {
+   "t": 48.0,
+   "event": "version 2 active"
+  },
+  {
+   "t": 72.0,
+   "event": "version 3 proposed (daily fit, day 3); deciding checks failed: none"
+  },
+  {
+   "t": 72.0,
+   "event": "version 3 approved by reviewer (scripted): all checks pass"
+  },
+  {
+   "t": 72.0,
+   "event": "version 3 active"
+  },
+  {
+   "t": 96.0,
+   "event": "version 4 proposed (daily fit, day 4); deciding checks failed: none"
+  },
+  {
+   "t": 96.0,
+   "event": "version 4 approved by reviewer (scripted): all checks pass"
+  },
+  {
+   "t": 96.0,
+   "event": "version 4 active"
+  },
+  {
+   "t": 120.0,
+   "event": "version 5 proposed (daily fit, day 5); deciding checks failed: none"
+  },
+  {
+   "t": 120.0,
+   "event": "version 5 approved by reviewer (scripted): all checks pass"
+  },
+  {
+   "t": 120.0,
+   "event": "version 5 active"
+  },
+  {
+   "t": 144.0,
+   "event": "version 6 proposed (daily fit, day 6); deciding checks failed: none"
+  },
+  {
+   "t": 144.0,
+   "event": "version 6 approved by reviewer (scripted): all checks pass"
+  },
+  {
+   "t": 144.0,
+   "event": "version 6 active"
+  },
+  {
+   "t": 168.0,
+   "event": "version 7 proposed (daily fit, day 7); deciding checks failed: none"
+  },
+  {
+   "t": 168.0,
+   "event": "version 7 approved by reviewer (scripted): all checks pass"
+  },
+  {
+   "t": 168.0,
+   "event": "version 7 active"
+  },
+  {
+   "t": 192.0,
+   "event": "version 8 proposed (daily fit, day 8); deciding checks failed: step"
+  },
+  {
+   "t": 192.0,
+   "event": "version 8 rejected by reviewer (scripted): checks failed: log_beta_pr_lace moved 0.058 (limit 0.05), log_beta_nd_pr moved 0.018 (limit 0.05), log_k moved 0.024 (limit 0.25)"
+  },
+  {
+   "t": 216.0,
+   "event": "version 9 proposed (daily fit, day 9); deciding checks failed: step"
+  },
+  {
+   "t": 216.0,
+   "event": "version 9 rejected by reviewer (scripted): checks failed: log_beta_pr_lace moved 0.058 (limit 0.05), log_beta_nd_pr moved 0.021 (limit 0.05), log_k moved 0.011 (limit 0.25)"
+  },
+  {
+   "t": 240.0,
+   "event": "version 10 proposed (daily fit, day 10); deciding checks failed: none"
+  },
+  {
+   "t": 240.0,
+   "event": "version 10 approved by reviewer (scripted): all checks pass"
+  },
+  {
+   "t": 240.0,
+   "event": "version 10 active"
+  },
+  {
+   "t": 264.0,
+   "event": "version 11 proposed (daily fit, day 11); deciding checks failed: none"
+  },
+  {
+   "t": 264.0,
+   "event": "version 11 approved by reviewer (scripted): all checks pass"
+  },
+  {
+   "t": 264.0,
+   "event": "version 11 active"
+  },
+  {
+   "t": 288.0,
+   "event": "version 12 proposed (daily fit, day 12); deciding checks failed: none"
+  },
+  {
+   "t": 288.0,
+   "event": "version 12 approved by reviewer (scripted): all checks pass"
+  },
+  {
+   "t": 288.0,
+   "event": "version 12 active"
+  },
+  {
+   "t": 312.0,
+   "event": "version 13 proposed (daily fit, day 13); deciding checks failed: none"
+  },
+  {
+   "t": 312.0,
+   "event": "version 13 approved by reviewer (scripted): all checks pass"
+  },
+  {
+   "t": 312.0,
+   "event": "version 13 active"
+  },
+  {
+   "t": 336.0,
+   "event": "version 14 proposed (daily fit, day 14); deciding checks failed: step, bounds"
+  },
+  {
+   "t": 336.0,
+   "event": "version 14 rejected by reviewer (scripted): checks failed: log_beta_pr_lace moved 0.029 (limit 0.05), log_beta_nd_pr moved 0.057 (limit 0.05), log_k moved 0.482 (limit 0.25); on its bound: log_k"
+  }
+ ]
+}
