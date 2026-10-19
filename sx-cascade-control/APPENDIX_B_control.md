@@ -3,6 +3,16 @@
 Formulations as implemented, in my notation. The methods are standard and
 are named with their usual references; nothing here is copied from them.
 
+**Status (October 19).** B.1 to B.9 are current for what they cover. B.1 gives
+the design's purity target; the main case's controller aims higher (99.8 %,
+`configs/ndpr_main.toml`). Pieces added later aren't written up here as
+equations: the level loops under the MPC and the acidity floor
+(ARCHITECTURE.md decisions 32 and 33), the guard and model registry (decisions
+37 to 39), the feed-loss interlock and the learned estimator (PROGRESS.md,
+phases 21 and 22). Some rows of the table in B.10 were overtaken by that work.
+Rows 1 and 29 say so; row 6 still lists the interlock as a next step, and it
+has since been built and run (PROGRESS.md, phase 21).
+
 ## B.1 Steady-state operating point (`src/design.py`)
 
 Variables: the full state *x* and the free handles *v* (organic flow, scrub

@@ -5,6 +5,12 @@ equation follows a source, the source is named next to it. The parameter
 table with every number and its origin is in `APPENDIX_A_parameters.md`,
 rendered from the parameter file itself.
 
+**Status (October 19).** The equations are current. The worked numbers (the
+stage-efficiency table in A.5, the volumes, the checks at the `ndpr_plant`
+point) are for the first plant, with 30 L mixers. The main case is now
+`configs/ndpr_main.toml`, with 130 L mixers and 520 L settlers
+(ARCHITECTURE.md decisions 28 and 34).
+
 ## A.1 Assumptions, stated
 
 These are the assumptions of the controller's model, and of the matched and
@@ -261,8 +267,8 @@ items below add what a plant engineer would say about them.
    half is now done as a side study (REPORT section 5.4, ARCHITECTURE.md
    decision 28): 130 L mixers and 520 L settlers, sized for three minutes at
    the design flows, give 95-96 % stages, about 19 stages for 95 % recovery
-   instead of 24, and a plant about 3.5 times slower. The main case keeps
-   the 30 L mixer. *Settles it:* a pilot stage at design flow.
+   instead of 24, and a plant about 3.5 times slower. The main case now
+   uses them (decision 34). *Settles it:* a pilot stage at design flow.
 2. **The Pr/Ce separation factor** (A.4). Lower values than 1.8-2.2 also
    appear in the literature (not checked against a project source). The
    Fenske estimate goes from about 14 stages at 2.0 to about 20 at 1.6.

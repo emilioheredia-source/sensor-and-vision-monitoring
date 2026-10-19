@@ -13,10 +13,10 @@ against a running circuit.
 
 | Topic | Where it is in this project |
 | --- | --- |
-| Process modelling from the chemistry | The extraction reaction and its mass-action law, metal and acid balances in every stage, transfer at a finite rate, the settler interface from the two liquid columns; constants fitted to published batch data. In CasADi. The model figure below; `APPENDIX_A_model.md` |
-| Why the separation is hard | Purity goes as the flow ratio raised to the number of stages, so the window is a few percent wide; the plant is ill-conditioned like a high-purity distillation column. Checked against countercurrent theory and a 2018 textbook, and a harder test plant built from the book's relations. `FINDINGS_why_hard.md`, notebooks 24, 29 |
+| Process modelling from the chemistry | The extraction reaction and its mass-action law, metal and acid balances in every stage, transfer at a finite rate, the settler interface from the two liquid columns; constants fitted to published batch data. In CasADi. The model figure below; [APPENDIX_A_model.md](APPENDIX_A_model.md) |
+| Why the separation is hard | Purity goes as the flow ratio raised to the number of stages, so the window is a few percent wide; the plant is ill-conditioned like a high-purity distillation column. Checked against countercurrent theory and a 2018 textbook, and a harder test plant built from the book's relations. [FINDINGS_why_hard.md](FINDINGS_why_hard.md), notebooks 24, 29 |
 | Optimization | Steady-state design with IPOPT: least reagent for a given purity and recovery; stage-count sweep; what operating margin costs and buys. `src/design.py`, notebooks 02, 04, 26 |
-| Model predictive control | Linear MPC on a receding horizon, re-linearized on the nonlinear model as it runs, with purity, recovery and acidity constraints, over a PI level loop on each settler. Tested on 20 plants drawn inside published ranges, 8 upsets each. `src/mpc.py`, `APPENDIX_B_control.md`, notebook 14 |
+| Model predictive control | Linear MPC on a receding horizon, re-linearized on the nonlinear model as it runs, with purity, recovery and acidity constraints, over a PI level loop on each settler. Tested on 20 plants drawn inside published ranges, 8 upsets each. `src/mpc.py`, [APPENDIX_B_control.md](APPENDIX_B_control.md), notebook 14 |
 | Sensors and state estimation | A Kalman filter on the instrument readings, with each instrument's calibration drift as a state. Which instruments, where, for what cost: on-line XRF at the ends, UV-Vis ratios inside the cascade, lab assays. `src/estimator.py`, notebooks 18, 31 |
 | System identification, drift and faults | Separation factors and stage efficiency fitted to noisy readings; a daily refit follows a slow loss of separation; the trend of the fit flags a sudden fault. Notebooks 31, 32, 33 |
 | Machine learning | A neural network (PyTorch) trained on simulated plants that reads the separation factors from the instruments: about 4 to 7 times closer than the physics fit on the main case, in a millisecond, and only as good as the plants it learned from. A PPO policy (stable-baselines3) compared with the MPC on the same episodes. Notebooks 35, 09 |
@@ -54,6 +54,8 @@ much La and Ce to wash back per unit of product.
 Each stage is a mixer, where the metal moves between the two liquids and acid
 is released, and a settler, where they separate again. The interface between
 them is held by the height of the aqueous outlet, the jackleg.
+
+More detail: the chemistry, the stage and the interface in [Appendix A](APPENDIX_A_model.md#a3-chemistry), sections A.3 to A.8.
 
 ## Background reading
 
@@ -94,8 +96,8 @@ equilibrium is the ion-exchange law of an acidic extractant: every metal ion
 that goes into the organic releases three protons, so acid is tracked in
 every stage and saponifying the organic is a handle. Constants are fitted
 from the Idaho tables or taken from published ranges, and every number in the
-parameter file states where it came from (`APPENDIX_A_model.md`,
-`APPENDIX_A_parameters.md`).
+parameter file states where it came from ([APPENDIX_A_model.md](APPENDIX_A_model.md),
+[APPENDIX_A_parameters.md](APPENDIX_A_parameters.md)).
 
 ![the model: one stage and its equations](figures/diag_model.png)
 
@@ -107,16 +109,22 @@ optimizer and, linearized, by the controller.*
 size on the same equations, and a sweep over stage counts shows how many
 stages the split needs.
 
+More detail: the optimizer in [Appendix B, B.1](APPENDIX_B_control.md#b1-steady-state-operating-point-srcdesignpy); the stage counts in [REPORT.md section 3](REPORT.md#3-how-many-stages); the design with margin in [FINDINGS, phase 2](FINDINGS_why_hard.md#phase-2-2026-10-17-design-operating-margin-and-the-sized-plant).
+
 **Probe it.** The usual upsets are run through it one at a time: a change of
 feed between two published deposits, a stronger feed, more acid in the feed,
 the feed pump stopping, a flowmeter reading low, a settler level drifting, the
 scrub acid too strong, two tired mixers.
+
+More detail: [REPORT.md section 4](REPORT.md#4-what-the-upsets-do).
 
 **Never trust one plant.** The controller never drives its own model. It
 drives plants that differ from it: twenty copies with their separation
 factors drawn inside the published ranges, and plants with mechanisms the
 model leaves out (settlers the liquid flows through, droplets carried into the
 next stage, chemistry that drifts over days).
+
+More detail: [Appendix A, A.12](APPENDIX_A_model.md#a12-plants-with-physics-the-model-doesnt-have), [Appendix B, B.8](APPENDIX_B_control.md#b8-the-plant-the-controller-drives-srcmismatchpy), [REPORT.md section 5.3](REPORT.md#53-twenty-plants-not-one).
 
 **A controller on top, the way plants are built.** A level loop on each
 settler, and a model predictive controller above them moving the organic
@@ -132,6 +140,8 @@ local loops hold the interfaces tighter (ARCHITECTURE.md decision 32). On the
 left, the slowest layer: the model's numbers refitted to the plant's readings,
 reviewed before they're used.*
 
+More detail: the MPC as equations in [Appendix B, B.2 and B.3](APPENDIX_B_control.md#b2-model-state-output-bias-linearization-and-prediction-srcmpcpy); why the plant is hard for it in [FINDINGS section 4](FINDINGS_why_hard.md#4-why-a-model-based-controller-struggles-ill-conditioning); the level loops in [ARCHITECTURE.md](ARCHITECTURE.md), decision 32.
+
 **Sensors as data.** What each instrument reads, how noisy, how late, how
 often, and an estimator that puts the readings together. Then which
 instruments, where, are worth having. X-ray fluorescence on the feed, the
@@ -143,6 +153,8 @@ profile with its calibration error cancelled. Those points go where the profile
 moves most: the front between La and Ce and the NdPr, in the middle of the
 scrub.
 
+More detail: the sensors and the estimator in [Appendix B, B.4 to B.7](APPENDIX_B_control.md#b4-sensors-srcsensorspy); where the instruments go in [FINDINGS, phase 5](FINDINGS_why_hard.md#phase-5-2026-10-18-from-a-simulation-toward-a-plant).
+
 **Learn the plant, under supervision.** A model is only as good as its numbers,
 and a plant's numbers change. The slowest layer fits a few of them, the
 separation factors and how close stages get to equilibrium, to what the
@@ -151,6 +163,8 @@ before the controller uses it. Letting the model learn on its own in
 production would let one bad reading, a fouled probe or a fault get built into
 it, and the controller would then act on that. The same daily fit, watched over
 time, also tells a slow drift from a sudden fault.
+
+More detail: [FINDINGS, phases 3 and 4](FINDINGS_why_hard.md#phases-3-and-4-2026-10-17-a-plant-closer-to-the-book-and-identify-then-control) (identify, then control), [phase 5](FINDINGS_why_hard.md#phase-5-2026-10-18-from-a-simulation-toward-a-plant) (supervised updates, the learned estimator).
 
 **Onto a plant in steps.** A controller goes on a plant in stages: shadow first (it
 reads the plant and says what it would do, nothing more), then advisory (an
@@ -161,6 +175,8 @@ the plant really sees. The controller talks to the plant the way it would on
 site, as an OPC UA client reading tags and writing setpoints, with a historian
 recording every tag.
 
+More detail: [FINDINGS, phase 5](FINDINGS_why_hard.md#phase-5-2026-10-18-from-a-simulation-toward-a-plant); [ARCHITECTURE.md](ARCHITECTURE.md), decisions 37 and 40.
+
 **Go back when a reading is wrong.** Several first readings didn't survive a
 closer look, and the documents keep the record. Five plants first taken as
 uncontrollable turned out to come from separation factors drawn outside the
@@ -169,6 +185,8 @@ at two different operating points. And the controller kept losing some
 plants because it could saponify the organic until the extraction stages ran
 out of acid, a region the chemistry model doesn't cover and a real plant would
 avoid. Each is written up with what replaced it.
+
+More detail: the corrections in [REPORT.md section 5.3](REPORT.md#53-twenty-plants-not-one) and [FINDINGS](FINDINGS_why_hard.md#the-short-version).
 
 ## Results, in brief
 
@@ -200,6 +218,8 @@ worst; with an interlock it does as well as leaving the plant alone.
 Running a little above the targets gives the plant about three times more
 room before an upset takes the product off spec, for a modest amount of extra
 reagent, and more stages make that margin cheaper.
+
+More detail: [FINDINGS, phase 6](FINDINGS_why_hard.md#phase-6-2026-10-18-the-identification-line-on-the-main-case-and-the-reruns) (the interlock against doing nothing, on twenty plants), [phase 2](FINDINGS_why_hard.md#phase-2-2026-10-17-design-operating-margin-and-the-sized-plant) (margin).
 
 ## What the model shows
 
@@ -240,6 +260,8 @@ These are properties of the simulated plant. A real plant will have its own.
   upsets: at 20 % it put 7 of 20 plants off spec on the feed switch; at 50 %
   the result was close to having no ceiling at all.
 
+More detail: [FINDINGS_why_hard.md](FINDINGS_why_hard.md#the-short-version).
+
 ## Approaching a real plant
 
 A model like this one is a way to learn, not a recipe. On a real plant the
@@ -263,11 +285,7 @@ the data is handled, or in the control.
   set, edit any setting, run, watch the circuit respond, and read a report of
   each run.
 - `notebooks/`: the numbered studies behind every result.
-- `REPORT.md`: the full write-up of the first version, with corrections where
-  later work replaced it. `FINDINGS_why_hard.md`: why the separation is
-  sensitive, with the literature. `APPENDIX_A_model.md`,
-  `APPENDIX_B_control.md`: the equations. `ARCHITECTURE.md`: the code and every
-  design decision with its reason. `PROGRESS.md`: the build log.
+- The documents, listed below.
 
 Everything runs from this folder through pixi, which installs the environment
 the first time:
@@ -279,6 +297,18 @@ pixi run python -m src.cli list                     # what can be chosen
 pixi run python -m src.cli run --config ndpr_main --plant perturbed --controller mpc_level_loops --upset feed_switch --hours 80
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pixi run python -m pytest tests
 ```
+
+## The documents
+
+| Document | What's in it | How current |
+| --- | --- | --- |
+| [FINDINGS_why_hard.md](FINDINGS_why_hard.md) | Why the separation is sensitive, with the literature | Current |
+| [APPENDIX_A_model.md](APPENDIX_A_model.md) | The model: assumptions, equations, what an SX engineer would question | Equations current. Worked numbers are for the first 30 L plant, not the main case (note at the top) |
+| [APPENDIX_A_parameters.md](APPENDIX_A_parameters.md) | Every number in the parameter file, with where it came from | Current. The main case's own settings are in `configs/ndpr_main.toml` |
+| [APPENDIX_B_control.md](APPENDIX_B_control.md) | The design optimizer, the MPC, the estimator, as equations | Current for what it covers. The later pieces (level loops, acidity floor, interlock, guard) are in ARCHITECTURE.md (note at the top) |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | How the code is put together, and every design decision with its reason | Current |
+| [PROGRESS.md](PROGRESS.md) | The build log, newest first | Current |
+| [REPORT.md](REPORT.md) | The full write-up of the first version | First version, kept as the record. Corrections are marked where later work replaced it |
 
 ## Limits
 
