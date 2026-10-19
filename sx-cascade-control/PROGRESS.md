@@ -62,6 +62,16 @@ removed upstream, the 85 % organic loading cap.
 
 ## Log
 
+### Mon Oct 19
+
+**README results redone, twice.** First as comparisons against a plant nobody touches; dropped, since no
+plant runs untouched and the point is the work, not the score. Now: a recording of the workbench running the feed
+switch (figures/workbench_feed_switch.gif, recorded by hand, cut to one frame in five at full resolution), the same
+controller's purity and recovery on the twenty plants (new notebook 40, traces, with the workbench's product,
+raffinate and feed analysers: 7 of 20 dip below spec, recovery back above 95 % within 8 h on all but it keeps moving
+a few percent around the target; with the full state, as a check, 5 dip and recovery settles on the target), and where to measure (notebook 39). The workbench screenshot left the code
+section. Number checks for the new sentences in tests/test_doc_numbers.py.
+
 ### Thu Oct 15 to Sat Oct 17
 
 **Why the split is hard, and a new main case.** The five plants that couldn't make spec came

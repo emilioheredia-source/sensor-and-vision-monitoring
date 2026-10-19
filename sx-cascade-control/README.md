@@ -1,4 +1,4 @@
-# Solvent extraction cascade: learning a process by building it
+# Simulating and controlling a rare earth solvent extraction circuit
 
 A rare earth solvent extraction circuit, built on a computer from the
 chemistry and published data, and probed to see how it behaves: what it
@@ -22,7 +22,7 @@ against a running circuit.
 | Machine learning | A neural network (PyTorch) trained on simulated plants that reads the separation factors from the instruments: about 4 to 7 times closer than the physics fit on the main case, in a millisecond, and only as good as the plants it learned from. A PPO policy (stable-baselines3) compared with the MPC on the same episodes. Notebooks 35, 09 |
 | Deployment and safety | The controller goes in steps (shadow, advisory, closed loop) inside move limits, with a watchdog and a journal; a feed-loss interlock; model updates checked, reviewed, versioned and reversible. `src/deployment.py`, `src/interlock.py`, `src/model_registry.py`, notebooks 34, 36, 37 |
 | Plant integration | An optional way to run: the plant as an OPC UA server (asyncua) with tagged process values and setpoints, the controller as a client that sees only tags, and a small historian that records every tag in SQLite. A run over OPC UA gives exactly the same moves as the normal in-process run. `src/plant_server.py`, `src/historian.py`, notebook 38 |
-| Software | A desktop workbench to set up, run, watch and compare runs, with a report of each run and session logs; settings saved as run files; every number in the parameter file states its source; 388 automated tests, including a check against reference runs to the last bit. `workbench/`, `params/`, `tests/` |
+| Software | A desktop workbench to set up, run, watch and compare runs, with a report of each run and session logs; settings saved as run files; every number in the parameter file states its source; 342 automated tests, including a check against reference runs to the last bit. `workbench/`, `params/`, `tests/` |
 
 ## The process
 
@@ -198,28 +198,38 @@ tens of thousands of steady-state solutions for the design and measurement
 studies and a few hundred optimized designs. Every number quoted in the
 documents is checked automatically against the result tables.
 
-![one upset over time](figures/readme_feed_switch.png)
+![the workbench running a feed switch](figures/workbench_feed_switch.gif)
 
-One upset over time: the feed switches between two published deposits and
-the NdPr in it doubles. With nobody touching it, the organic can't carry the
-extra NdPr and about half of it goes out with the raffinate for as long as
-nothing changes. The controller raises the organic flow and has recovery back
-within hours, letting purity dip a little while staying above spec.
+One upset in the workbench, as it runs. The feed switches to a richer deposit at
+5 h and the NdPr in it doubles. The controller raises the organic flow and cuts
+the scrub acid; recovery drops and is back within hours, and purity dips and
+stays above spec. Around it: the circuit with its instruments, the profile along
+the stages, the settler interfaces, the handles, and what the controller is told
+and plans.
 
-![twenty plants, eight upsets](figures/readme_twenty_plants.png)
+![the controller on twenty plants](figures/readme_twenty_plants.png)
 
-The same comparison on twenty plants drawn inside the published ranges,
-eight upsets each, 80 hours per run. The controller helps most with changes
-in the feed and the acids. The feed pump stopping is the upset it handles
-worst; with an interlock it does as well as leaving the plant alone.
+The same controller on twenty plants drawn inside the published ranges, each
+one different from the model it plans on, seeing the plant only through the
+product, raffinate and feed analysers: readings with about 2 % noise, six
+minutes late. On every plant, recovery is back above 95 % within 8 hours of the
+switch, but it doesn't settle; it keeps moving a few percent around the target,
+mostly above it. Purity dips on most plants; on 7 it goes below spec for a
+while, by at most 0.4 percentage points, and comes back. The same runs with the
+controller seeing the plant's full state settle on the target, and fewer plants
+dip below spec. What the controller can see matters, which is why the next
+figure is about where to measure.
 
-![what margin buys](figures/readme_margin.png)
+![where to measure](figures/readme_where_to_measure.png)
 
-Running a little above the targets gives the plant about three times more
-room before an upset takes the product off spec, for a modest amount of extra
-reagent, and more stages make that margin cheaper.
+Where an instrument sits matters as much as what it is. In the middle of the
+scrub, where the front between the La and Ce and the NdPr sits, a 1 % change in
+the separation factor moves the Pr reading by about 95 % (Pr is the product
+element nearest the cut, so it moves first). Anywhere in the
+extraction section it moves it by 4 % or less. That's where the optical points
+go.
 
-More detail: [FINDINGS, phase 6](FINDINGS_why_hard.md#phase-6-2026-10-18-the-identification-line-on-the-main-case-and-the-reruns) (the interlock against doing nothing, on twenty plants), [phase 2](FINDINGS_why_hard.md#phase-2-2026-10-17-design-operating-margin-and-the-sized-plant) (margin).
+More detail: [FINDINGS, phase 6](FINDINGS_why_hard.md#phase-6-2026-10-18-the-identification-line-on-the-main-case-and-the-reruns) (the twenty plants and the interlock against doing nothing), [phase 5](FINDINGS_why_hard.md#phase-5-2026-10-18-from-a-simulation-toward-a-plant) (where the instruments go); the two plots are made by `notebooks/28_readme_figures.py` from notebook 40's runs and notebook 39's table.
 
 ## What the model shows
 
@@ -244,9 +254,6 @@ These are properties of the simulated plant. A real plant will have its own.
   model a little off, it sometimes moved the wrong way. That points at
   measuring the plant better, and at estimating its numbers while it runs,
   more than at a cleverer controller.
-- Where an instrument sits makes a big difference. At the front in the middle of
-  the scrub, a 1 % change in the separation factor moves the Pr concentration by
-  about 95 %; anywhere in the extraction section, by 4 % or less.
 - The direction of a feed change decides the risk. Going to a richer feed, the
   plant left alone loses NdPr to the raffinate. Going to a leaner one, the
   organic is suddenly too much and pulls La and Ce into the product: 14 of 20
@@ -277,13 +284,11 @@ the data is handled, or in the control.
 
 ## The code and how to run it
 
-![the workbench during a feed switch](figures/workbench.png)
-
 - `src/`: the model (CasADi), the design optimizer, the plants, the
   controller, the estimator and sensors, and the run machinery.
 - `workbench/`: a desktop app to choose a plant, controller, upset and sensor
   set, edit any setting, run, watch the circuit respond, and read a report of
-  each run.
+  each run (it's the one running at the top of the results).
 - `notebooks/`: the numbered studies behind every result.
 - The documents, listed below.
 

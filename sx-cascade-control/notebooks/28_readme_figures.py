@@ -1,18 +1,17 @@
-"""Three plain figures for the README, on the main case (configs/ndpr_main.toml).
+"""Two figures for the README's results, on the main case (configs/ndpr_main.toml).
 
-  1. readme_margin.png    what running with margin buys and costs, for four stage counts (notebook 26):
-                          the band of scrub flow that keeps the product on spec, and the reagent.
-  2. readme_feed_switch.png   one upset over time: the feed changing between two published deposits,
-                          on the report's plant, with nobody touching it and under the controller.
-  3. readme_twenty_plants.png the twenty realistic plants of the main-case seed study: per upset, the
-                          median NdPr lost or made off spec, uncontrolled and controlled, with the range.
+  1. readme_twenty_plants.png   the controller on the twenty plants drawn inside the published
+                          separation-factor ranges, through the feed switch to the richer deposit: purity
+                          and recovery over time, one line per plant (notebook 40's traces).
+  2. readme_where_to_measure.png  how much a 1 % change in the Pr/(La+Ce) separation factor moves the
+                          Pr reading at each stage (notebook 39).
 
-Figures 1 and 3 are drawn from results already saved (runs/operating_margin_summary.csv from
-notebook 26, runs/seed_spread_ndpr_main_s*-*.csv from notebook 14); figure 2 runs its two
-simulations here.
+Both are drawn from results already saved: runs/twenty_plants_traces_ndpr_main.npz (notebook 40) and
+runs/sensor_sensitivity_ndpr_main.csv (notebook 39). The README's first picture is a recording of the
+workbench (figures/workbench_feed_switch.gif), not made here.
 
 Run:  pixi run python notebooks/28_readme_figures.py
-Writes the three figures to figures/.
+Writes the two figures to figures/.
 """
 import sys
 from pathlib import Path
@@ -22,82 +21,89 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from src.plotting import FIGURES, INK, INK2, MUTED, SLOT, style         # noqa: E402
-from src.runs import RunSpec, execute                                   # noqa: E402
+from src.plotting import FIGURES, GRID, INK, INK2, MUTED, SLOT, style   # noqa: E402
 
 HERE = Path(__file__).resolve().parent.parent
+RUNS = HERE / "runs"
+CONTROLLER = SLOT[0]
+SECTIONS = [(0, 8, "extraction"), (8, 28, "scrub"), (28, 32, "strip")]      # the main case's 8 + 20 + 4
 style()
 
-# ---- 1. what margin buys, by stage count (notebook 26) ----
-# Each of the twenty realistic plants retuned to its own cheapest flows that meet the policy's targets;
-# the band of scrub flow that keeps it on spec measured there (median over the plants), and the reagent.
-m = pd.read_csv(HERE / "runs" / "operating_margin_summary.csv")
-layouts = ["8+20", "10+26", "12+32", "14+38"]
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10.0, 3.6))
-x = np.arange(len(layouts))
-for off, policy, color, label in [(-0.2, "edge", SLOT[3], "cheapest flows (99.5 % / 95 %)"),
-                                  (0.2, "margin", SLOT[0], "with margin (99.8 % / 97 %)")]:
-    rows = [m[m.case == f"{lay}_130L_{policy}"].iloc[0] for lay in layouts]
-    ax1.bar(x + off, [r["median_window_pct"] for r in rows], width=0.38, color=color, label=label)
-    ax2.bar(x + off, [r["median_reagent"] for r in rows], width=0.38, color=color, label=label)
-for ax in (ax1, ax2):
-    ax.set_xticks(x, [f"{lay} stages" for lay in layouts])
-    ax.set_xlabel("extraction + scrub stages")
-ax1.set_ylabel("on-spec band, % of scrub flow")
-ax1.set_title("Room before the product goes off spec", loc="left", color=INK, fontsize=9)
-ax2.set_ylabel("reagent, mol/h")
-ax2.set_title("What it costs in reagent", loc="left", color=INK, fontsize=9)
-ax2.set_ylim(0, None)
-ax1.legend(frameon=False, fontsize=8, loc="upper left")
-fig.text(0.01, -0.06, "Twenty plants drawn inside the published separation-factor ranges, each retuned to its own "
-         "cheapest flows that meet the targets; medians (notebook 26).", fontsize=7.5, color=MUTED)
-fig.savefig(FIGURES / "readme_margin.png", bbox_inches="tight")
-plt.close(fig)
-print("wrote readme_margin.png")
 
-# ---- 2. one upset over time ----
-fig, axes = plt.subplots(2, 1, figsize=(8.0, 4.6), sharex=True)
-for ctl, color, label in [("open_loop_level_loops", SLOT[3], "nobody touching it"),
-                          ("mpc_level_loops", SLOT[0], "under the controller")]:
-    r = execute(RunSpec(config="ndpr_main", plant="perturbed", controller=ctl, upset="feed_switch", hours=80.0))
-    axes[0].plot(r.t, 100 * np.asarray(r.series["purity"]), color=color, lw=1.8, label=label)
-    axes[1].plot(r.t, 100 * np.asarray(r.series["recovery"]), color=color, lw=1.8)
-axes[0].axhline(99.0, color=MUTED, lw=0.8, ls=":")
-axes[1].axhline(95.0, color=MUTED, lw=0.8, ls=":")
-axes[0].set_ylabel("purity, %")
-axes[1].set_ylabel("recovery, %")
-axes[1].set_xlabel("hours (the feed changes at 5 h, over one hour)")
-axes[0].legend(frameon=False, fontsize=8)
-axes[0].set_title("The feed switches from one published deposit to another (NdPr 21 % to 41 % of the metal)",
-                  loc="left", color=INK, fontsize=9)
-fig.savefig(FIGURES / "readme_feed_switch.png", bbox_inches="tight")
-plt.close(fig)
-print("wrote readme_feed_switch.png")
+def sections(ax, label=True):
+    """Shade the scrub and name the three sections above the axes."""
+    for k, (first, end, name) in enumerate(SECTIONS):
+        if k == 1:
+            ax.axvspan(first - 0.5, end - 0.5, color=GRID, alpha=0.5, lw=0)
+        if label:
+            ax.text((first + end - 1) / 2, 1.02, name, transform=ax.get_xaxis_transform(),
+                    ha="center", va="bottom", color=MUTED, fontsize=8)
 
-# ---- 3. twenty plants ----
-files = sorted((HERE / "runs").glob("seed_spread_ndpr_main_s*-*.csv"))
-d = pd.concat([pd.read_csv(f) for f in files])
-d["cost"] = d["lost_excess_mol"].clip(lower=0) + d["off_spec_mol"]
-names = {"feed_switch": "feed changes deposit", "feed_step": "stronger feed", "feed_acid": "more acid in the feed",
-         "reflux_acid": "scrub acid too strong", "flowmeter_bias": "organic flowmeter 5 % low",
-         "feed_interrupt": "feed pump stops 2 h", "interface_drift": "settler level drifts",
-         "efficiency_loss": "two tired mixers"}
-fig, ax = plt.subplots(figsize=(8.0, 4.2))
-y = np.arange(len(names))
-for k, (ctl, color, label, off) in enumerate([("open_loop_level_loops", SLOT[3], "nobody touching it", 0.18),
-                                              ("mpc_level_loops", SLOT[0], "under the controller", -0.18)]):
-    med = [d[(d.upset == u) & (d.controller == ctl)]["cost"].median() + 1 for u in names]
-    lo = [d[(d.upset == u) & (d.controller == ctl)]["cost"].min() + 1 for u in names]
-    hi = [d[(d.upset == u) & (d.controller == ctl)]["cost"].max() + 1 for u in names]
-    ax.barh(y + off, med, height=0.34, color=color, label=label)
-    ax.hlines(y + off, lo, hi, color=INK2, lw=0.8)
-ax.set_xscale("log")
-ax.set_yticks(y, list(names.values()))
-ax.invert_yaxis()
-ax.set_xlabel("NdPr lost or made off spec in 80 h, mol (+1, log scale): median bar, line from best to worst plant")
-ax.legend(frameon=False, fontsize=8, loc="lower right")
-ax.set_title("Twenty plants drawn inside the published separation-factor ranges, eight upsets each",
-             loc="left", color=INK, fontsize=9)
+
+# ---- 1. the controller on twenty plants ----
+traces = np.load(RUNS / "twenty_plants_traces_ndpr_main.npz")
+seeds = sorted({int(k.split("_")[1]) for k in traces.files})
+fig, (top, low) = plt.subplots(2, 1, figsize=(10.0, 5.4), sharex=True, gridspec_kw={"hspace": 0.18})
+below_spec, back_by = 0, []
+for seed in seeds:
+    t = traces[f"t_{seed}"]
+    purity, recovery = 100 * traces[f"purity_{seed}"], 100 * traces[f"recovery_{seed}"]
+    top.plot(t, purity, color=CONTROLLER, lw=1.0, alpha=0.55)
+    low.plot(t, recovery, color=CONTROLLER, lw=1.0, alpha=0.55)
+    below_spec += int(purity.min() < 99.0)
+    after = (t > 6.0) & (recovery >= 95.0)
+    back_by.append(float(t[after][0]) if after.any() else np.nan)
+top.axhline(99.0, color=INK2, lw=0.9, ls="--")
+top.text(80.5, 99.0, "spec", va="center", fontsize=8, color=INK2)
+low.axhline(97.0, color=INK2, lw=0.9, ls="--")
+low.text(80.5, 97.0, "target", va="center", fontsize=8, color=INK2)
+for ax in (top, low):
+    ax.axvline(5.0, color=MUTED, lw=0.8, ls=":")
+top.text(5.4, 1.0, "feed switches", transform=top.get_xaxis_transform(), fontsize=8, color=MUTED, va="top")
+top.set_ylim(98.0, 100.1)
+top.set_ylabel("purity, %")
+low.set_ylim(40, 115)
+low.set_ylabel("recovery, %")
+low.set_xlabel("hours")
+low.set_xlim(0, 80)
+top.set_title("The same controller on twenty plants, each one different from the model it plans on",
+              loc="left", color=INK, fontsize=9.5)
+fig.text(0.01, -0.02,
+         "The feed switches to a richer deposit at 5 h (NdPr from 21 % to 41 % of the metal). One line per plant: "
+         "the main case's controller over level loops, seeing only the product, raffinate and feed\nanalysers "
+         "(as in the workbench run above), on plants drawn inside the published separation-factor ranges (seeds "
+         "1-20). Traces: notebook 40.\nRecovery is the NdPr going out in the product over the NdPr coming in, at "
+         "that moment; it goes above 100 % while the cascade gives up metal it was holding.",
+         fontsize=7.5, color=MUTED, va="top")
 fig.savefig(FIGURES / "readme_twenty_plants.png", bbox_inches="tight")
 plt.close(fig)
-print("wrote readme_twenty_plants.png")
+print(f"wrote readme_twenty_plants.png ({below_spec} of {len(seeds)} dip below spec; recovery back above 95 % "
+      f"by {np.nanmedian(back_by):.1f} h median, {np.nanmax(back_by):.1f} h at the latest)")
+
+
+# ---- 2. where to measure ----
+s = pd.read_csv(RUNS / "sensor_sensitivity_ndpr_main.csv")
+pr = s[(s.phase == "aqueous") & (s.element == "Pr")].sort_values("stage")
+fig, ax = plt.subplots(figsize=(10.0, 3.4))
+sections(ax)
+ax.bar(pr["stage"], pr["beta Pr/(La+Ce)"].abs(), width=0.75, color=CONTROLLER, zorder=3)
+peak = pr.loc[pr["beta Pr/(La+Ce)"].abs().idxmax()]
+extraction_max = pr[pr.section == "extraction"]["beta Pr/(La+Ce)"].abs().max()
+ax.annotate(f"stage {int(peak.stage)}: {abs(peak['beta Pr/(La+Ce)']):.0f} %", (peak.stage, abs(peak["beta Pr/(La+Ce)"])),
+            xytext=(0, 4), textcoords="offset points", fontsize=8.5, color=INK2, ha="center", va="bottom")
+ax.annotate(f"extraction: {extraction_max:.0f} % or less", (3.5, extraction_max), xytext=(0, 14),
+            textcoords="offset points", ha="center", fontsize=8.5, color=INK2)
+ax.set_xlim(-0.8, 31.8)
+ax.set_ylim(0, 108)
+ax.set_xlabel("stage (raffinate leaves at stage 0)")
+ax.set_ylabel("change in the Pr reading, %")
+ax.set_title("How much a 1 % change in the Pr/(La+Ce) separation factor moves the aqueous Pr reading, stage by "
+             "stage", loc="left", color=INK, fontsize=9.5, pad=16)
+fig.text(0.01, -0.04,
+         "On the main case at its operating point (notebook 39). A reading where the profile is steep tells the "
+         "most about the plant's chemistry; one at the extraction end tells almost nothing.",
+         fontsize=7.5, color=MUTED, va="top")
+fig.savefig(FIGURES / "readme_where_to_measure.png", bbox_inches="tight")
+plt.close(fig)
+print(f"wrote readme_where_to_measure.png (peak stage {int(peak.stage)}, {peak['beta Pr/(La+Ce)']:.1f}; "
+      f"extraction max {extraction_max:.1f})")

@@ -668,6 +668,38 @@ def main_median(upset, controller):
     return float(main_seed_costs().loc[upset][controller].median())
 
 
+def twenty_plant_traces(variant=""):
+    """Notebook 40: purity and recovery traces of the controller on the twenty plants, feed switch at 5 h
+    (variant "_full_state": the same runs with the controller seeing the plant's state)."""
+    d = np.load(RUNS / f"twenty_plants_traces_ndpr_main{variant}.npz")
+    seeds = sorted({int(k.split("_")[1]) for k in d.files})
+    return [(d[f"t_{s}"], d[f"purity_{s}"], d[f"recovery_{s}"]) for s in seeds]
+
+
+def plants_below_spec(variant=""):
+    return sum(int(p.min() < 0.99) for _, p, _ in twenty_plant_traces(variant))
+
+
+def worst_purity_dip_points():
+    """How far below the 99 % spec the lowest purity went, in percentage points."""
+    return 99.0 - 100 * min(p.min() for _, p, _ in twenty_plant_traces())
+
+
+def latest_recovery_back_h():
+    """Hours after the switch (5 h) until recovery is back above 95 %, on the slowest plant."""
+    return max(float(t[(t > 6.0) & (r >= 0.95)][0]) - 5.0 for t, _, r in twenty_plant_traces())
+
+
+def main_sensitivity(section=None):
+    """Notebook 39 on the main case: % change in the aqueous Pr reading per % change in the Pr/(La+Ce)
+    separation factor, per stage (one section's stages, if given)."""
+    s = pd.read_csv(RUNS / "sensor_sensitivity_ndpr_main.csv")
+    s = s[(s.phase == "aqueous") & (s.element == "Pr")]
+    if section:
+        s = s[s.section == section]
+    return s["beta Pr/(La+Ce)"]
+
+
 def margin_row(case):
     return row("operating_margin_summary.csv", case=case)
 
@@ -1282,6 +1314,17 @@ CLAIMS = [
     C("README", "main_margin_reagent", "for about {} % more reagent",
       compute=lambda: percent_more(margin_row("8+20_130L_margin")["median_reagent"],
                                    margin_row("8+20_130L_edge")["median_reagent"])),
+
+    # the README's results, beside notebook 28's figures (from 2026-10-19)
+    C("README", "twenty_recovery_back", "back above 95 % within {} hours of the switch",
+      fmt=lambda v: str(int(np.ceil(v))), compute=latest_recovery_back_h),
+    C("README", "twenty_below_spec", "on {} it goes below spec for a while", compute=plants_below_spec),
+    C("README", "twenty_dip_depth", "by at most {} percentage points", fmt=decimals(1),
+      compute=worst_purity_dip_points),
+    C("README", "main_sensitivity_peak", "moves the Pr reading by about {} %",
+      compute=lambda: main_sensitivity().abs().max()),
+    C("README", "main_sensitivity_extraction", "it moves it by {} % or less",
+      compute=lambda: main_sensitivity(section="extraction").abs().max()),
 ]
 
 
@@ -1333,3 +1376,14 @@ def test_document_quotes_its_table(claim):
                     f"the table gives '{new}'")
     pytest.fail(f"{DOCS[claim.doc]}: '{claim.template}' says {', '.join(old)}; "
                 f"the table gives '{new}'")
+
+
+def test_readme_full_state_comparison():
+    """The README says the twenty runs with the controller seeing the plant's full state settle on the
+    target and have fewer plants dipping below spec than with the analysers (notebook 40, both files)."""
+    readme = normalized((PROJECT / DOCS["README"]).read_text(encoding="utf-8"))
+    if "settle on the target, and fewer plants dip below spec" not in readme:
+        pytest.skip("the README no longer makes the comparison")
+    assert plants_below_spec("_full_state") < plants_below_spec()
+    for t, _, recovery in twenty_plant_traces("_full_state"):
+        assert abs(recovery[-1] - 0.97) < 0.005           # settled on the 97 % target
