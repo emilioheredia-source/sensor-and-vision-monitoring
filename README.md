@@ -1,5 +1,7 @@
 # Process monitoring, control and machine vision
 
+**Latest update: sx-cascade-control v1.2, October 25, 2026.** [What changed in this version](sx-cascade-control/README.md#whats-new-in-v12) (or the [full changelog](sx-cascade-control/CHANGELOG.md))
+
 Three projects: a rare earth separation plant simulated from its chemistry with
 a controller on top, machine condition read from sensors, and a liquid level
 read from a camera.
@@ -18,6 +20,11 @@ textbook. The work also looks at where instruments pay off, at learning the
 plant's numbers from its readings with a person reviewing each update, at
 putting a controller onto a plant in steps, and at an OPC UA link with a
 historian. It's a simulation; none of it is plant data.
+
+**Updates** (newest first; every change in the [changelog](sx-cascade-control/CHANGELOG.md)):
+
+- **v1.2, Oct 25, 2026:** the physics fit now adjusts the numbers the readings can see, and a test of whether the model's accuracy matters to the plant. [Details →](sx-cascade-control/README.md#whats-new-in-v12)
+- **v1.0 and v1.1, Oct 19, 2026:** first release.
 
 **[Write-up, method and results →](sx-cascade-control/README.md)**
 

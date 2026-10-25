@@ -692,6 +692,7 @@ recovery the share of the product-side metal fed that leaves in the product.
     Plant simulations have no budget. Same principle as the controller's
     fixed-cost model state in decision 23 (4): a controller has to come back
     on time.
+    *Changed since:* decision 41 gives plant simulations a budget too.
 - **28.** **Stages sized to the design flows, as a side study.** The mixer is
     the lab rig's scaled 250 times, 30 L, sized for 600 L/h; the ndpr_plant
     design puts up to 2,594 L/h through one, so its stages reach 81–85 % of
@@ -926,6 +927,16 @@ recovery the share of the product-side metal fed that leaves in the product.
     against the same run in one process; every value carries a source
     timestamp in plant time, so the historian (subscription to SQLite) files
     it where it belongs. Security mode None in the demo.
+
+41. **Plant simulations have an evaluation budget (Oct 23; v1.2).** The plant
+    integrator's last fallback (LSODA, no Jacobian, no step limit) could crawl
+    for hours on a stalled state: two overnight studies hung on one run, where
+    the controller had over-saponified the organic and the simulation ground on
+    in a region the chemistry model doesn't cover. Each integration attempt now
+    counts its right-hand-side evaluations (simulate.MAX_RHS_CALLS = 50,000,
+    chosen: far above what a normal piece needs); past that the attempt counts
+    as failed, the fallback ladder moves on, and if every rung fails the run
+    ends with "integration stalled". Reference runs unchanged.
 
 ## Open
 

@@ -37,6 +37,16 @@ from scipy.optimize import root
 
 from .circuit import Circuit, Inputs
 
+# Why: measured, Oct 23 (notebooks 44, 45, 48). On a plant driven into the stiff corner of the
+# chemistry, BDF and Radau gave up on a 0.025 h segment and LSODA, with no Jacobian and no step
+# limit, then crawled for hours on it: two studies stalled overnight. A normal segment takes a few
+# hundred evaluations; past this many the attempt counts as failed and the ladder moves on.
+MAX_RHS_CALLS = 50_000                         # right-hand-side evaluations per integration attempt
+
+
+class _OverBudget(Exception):
+    """An integration attempt used up MAX_RHS_CALLS without finishing."""
+
 
 @dataclass
 class Trajectory:
@@ -67,9 +77,14 @@ class _Segment:
     u_seg: np.ndarray
     rtol: float
     atol: float
+    calls: int = 0                              # rhs evaluations in the current attempt
 
     def rhs(self, t, y):
-        """dx/dt at state y (the inputs don't change inside a segment, so t isn't used)."""
+        """dx/dt at state y (the inputs don't change inside a segment, so t isn't used).
+        Raises _OverBudget past MAX_RHS_CALLS evaluations in one attempt."""
+        self.calls += 1
+        if self.calls > MAX_RHS_CALLS:
+            raise _OverBudget
         return self.circuit.rhs(y, self.u_seg)
 
     def jac(self, t, y):
@@ -106,7 +121,11 @@ def _solve_with_fallbacks(seg: _Segment, x: np.ndarray, t_span: tuple, t_eval: n
     """Try BDF, Radau and LSODA in turn on the whole segment. Returns the first solution that
     succeeds with finite values, or None if all three fail. (LSODA works out its own Jacobian.)"""
     for method, kw in (("BDF", dict(jac=seg.jac)), ("Radau", dict(jac=seg.jac)), ("LSODA", {})):
-        sol = solve_ivp(seg.rhs, t_span, x, method=method, t_eval=t_eval, rtol=seg.rtol, atol=seg.atol, **kw)
+        seg.calls = 0
+        try:
+            sol = solve_ivp(seg.rhs, t_span, x, method=method, t_eval=t_eval, rtol=seg.rtol, atol=seg.atol, **kw)
+        except _OverBudget:
+            continue                                     # stalled: the next method, then the pieces
         if sol.success and np.all(np.isfinite(sol.y)):
             return sol
     return None
@@ -139,8 +158,12 @@ def _solve_piece(seg: _Segment, x_piece: np.ndarray, piece: tuple, te: list):
 
     Returns scipy's solution. Raises RuntimeError naming the piece if it fails or isn't finite.
     """
-    sol = solve_ivp(seg.rhs, piece, x_piece, method="Radau", jac=seg.jac, t_eval=te or None,
-                    rtol=max(seg.rtol, 1e-4), atol=max(seg.atol, 1e-7))
+    seg.calls = 0
+    try:
+        sol = solve_ivp(seg.rhs, piece, x_piece, method="Radau", jac=seg.jac, t_eval=te or None,
+                        rtol=max(seg.rtol, 1e-4), atol=max(seg.atol, 1e-7))
+    except _OverBudget:
+        raise RuntimeError(f"integration stalled on [{piece[0]}, {piece[1]}]: over {MAX_RHS_CALLS} evaluations")
     if not sol.success or not np.all(np.isfinite(sol.y)):
         raise RuntimeError(f"integration failed on [{piece[0]}, {piece[1]}]: {sol.message}")
     return sol

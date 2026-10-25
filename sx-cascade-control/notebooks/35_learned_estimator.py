@@ -26,7 +26,7 @@ The method:
      for the least-squares fit (the net proposes, the physics checks).
 
 Run:
-  pixi run python notebooks/35_learned_estimator.py data      # training data, about an hour on 11 cores
+  pixi run python notebooks/35_learned_estimator.py data      # training data, about an hour on 11 cores (all but two)
   pixi run python notebooks/35_learned_estimator.py train     # fit ridge and net, score on held-out plants
   pixi run python notebooks/35_learned_estimator.py test      # the ten test plants, closed loop on the hard ones
 Writes runs/learned_estimator/ (data chunks, the trained net) and
@@ -34,6 +34,7 @@ runs/learned_estimator_ndpr_plant.csv (one row per test plant).
 """
 import csv
 import importlib.util
+import os
 import sys
 import time
 import warnings
@@ -56,6 +57,8 @@ MAIN = CONFIG == "ndpr_main"            # the main case: 600 training plants, te
 DATA_DIR = HERE / "runs" / ("learned_estimator" if not MAIN else f"learned_estimator_{CONFIG}")
 # --hours H and --seeds a,b,c rerun chosen test plants for longer, into their own table
 LONG = "--hours" in sys.argv
+# Worker processes and torch threads: every core but two, at least one.
+WORKERS = max(1, (os.cpu_count() or 1) - 2)
 OUT = HERE / "runs" / (f"learned_estimator_{CONFIG}.csv" if not LONG else f"learned_estimator_{CONFIG}_long.csv")
 TRAIN_SEEDS = range(1000, 1600) if MAIN else range(1000, 2200)
 CHUNK = 50
@@ -137,14 +140,15 @@ def make_data():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     starts = list(range(TRAIN_SEEDS.start, TRAIN_SEEDS.stop, CHUNK))
     t0 = time.time()
-    with Pool(11) as pool:
+    with Pool(WORKERS) as pool:
         for n, path in enumerate(pool.imap_unordered(make_chunk, starts), start=1):
             print(f"{n}/{len(starts)} chunks ({time.time() - t0:.0f} s): {Path(path).name}", flush=True)
 
 
-def load_data():
-    """All chunks, with each row's plant seed so held-out plants stay whole."""
-    chunks = [np.load(path) for path in sorted(DATA_DIR.glob("chunk_*.npz"))]
+def load_data(dirs=None):
+    """All chunks, with each row's plant seed so held-out plants stay whole. dirs: the folders to read
+    (default this config's DATA_DIR; notebook 44 adds the plants built with other physics)."""
+    chunks = [np.load(path) for d in (dirs or (DATA_DIR,)) for path in sorted(Path(d).glob("chunk_*.npz"))]
     return (np.vstack([d["y"] for d in chunks]), np.vstack([d["h"] for d in chunks]),
             np.vstack([d["label"] for d in chunks]), np.concatenate([d["seed"] for d in chunks]))
 
@@ -170,12 +174,15 @@ class Scaler:
         return a * self.sd + self.mean
 
 
-def train():
+def train(dirs=None, out_dir=None):
+    """Fit the ridge and the net on the chunks in dirs (default DATA_DIR) and save them to out_dir
+    (default DATA_DIR)."""
+    out_dir = Path(out_dir or DATA_DIR)
     import torch
     from sklearn.linear_model import Ridge
     torch.manual_seed(0)
-    torch.set_num_threads(8)
-    y, h, lab, pid = load_data()
+    torch.set_num_threads(WORKERS)
+    y, h, lab, pid = load_data(dirs)
     rng = np.random.default_rng(0)
     plants = np.unique(pid)
     held_out = set(rng.choice(plants, size=len(plants) // 7, replace=False))
@@ -219,16 +226,18 @@ def train():
         if epoch % 50 == 0:
             print(f"epoch {epoch}: held-out rmse of log beta {rmse.round(4)}", flush=True)
     net.load_state_dict(best_state)
-    torch.save({"net": best_state, "sx": (sx.mean, sx.sd), "sl": (sl.mean, sl.sd)}, DATA_DIR / "net.pt")
+    torch.save({"net": best_state, "sx": (sx.mean, sx.sd), "sl": (sl.mean, sl.sd)}, out_dir / "net.pt")
     import pickle
-    pickle.dump({"ridge": ridge, "sx": sx, "sl": sl}, open(DATA_DIR / "ridge.pkl", "wb"))
+    pickle.dump({"ridge": ridge, "sx": sx, "sl": sl}, open(out_dir / "ridge.pkl", "wb"))
     print(f"held-out plants, rmse of log beta [Pr/(La+Ce), Nd/Pr]: ridge {ridge_rmse.round(4)}, net {best_rmse.round(4)}")
 
 
-def load_estimators():
+def load_estimators(model_dir=None):
+    """The trained net and ridge from model_dir (default DATA_DIR), as functions of (readings, handles)."""
+    model_dir = Path(model_dir or DATA_DIR)
     import pickle
     import torch
-    saved = torch.load(DATA_DIR / "net.pt", weights_only=False)
+    saved = torch.load(model_dir / "net.pt", weights_only=False)
     net = torch.nn.Sequential(torch.nn.Linear(17, 64), torch.nn.SiLU(), torch.nn.Linear(64, 64), torch.nn.SiLU(),
                               torch.nn.Linear(64, 2))
     net.load_state_dict(saved["net"])
@@ -240,7 +249,7 @@ def load_estimators():
         with torch.no_grad():
             return net(torch.tensor(X, dtype=torch.float32)).numpy()[0] * sl_s + sl_m
 
-    r = pickle.load(open(DATA_DIR / "ridge.pkl", "rb"))
+    r = pickle.load(open(model_dir / "ridge.pkl", "rb"))
 
     def ridge_estimate(y, h):
         return r["sl"].back(r["ridge"].predict(r["sx"](features(y[None], h[None]))))[0]
@@ -344,7 +353,7 @@ def _test_seeds():
 def test():
     with open(OUT, "w", newline="") as f:
         csv.DictWriter(f, fieldnames=FIELDS).writeheader()
-    with Pool(10) as pool:
+    with Pool(WORKERS) as pool:
         for row in pool.imap_unordered(test_one, _test_seeds()):
             with open(OUT, "a", newline="") as f:
                 csv.DictWriter(f, fieldnames=FIELDS).writerow(row)

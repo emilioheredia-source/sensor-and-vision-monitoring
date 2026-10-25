@@ -62,6 +62,59 @@ removed upstream, the 85 % organic loading cap.
 
 ## Log
 
+### Fri Oct 23 and Sat Oct 24 (v1.2)
+
+**Fair test, Tests 3 to 6 (notebooks 43 to 45; FINDINGS phase 8).** Test 3: the MAP fit of both separation
+factors and the acid exponent matches the plain fit (Pr/(La+Ce) median 0.002, worst 0.012); extra scrub points
+don't improve it, and a fourth number (all extraction constants together) can't be told from the acid exponent,
+so the fitted set stays at three. Test 4: on plants with entrainment, settlers the liquid flows through and
+drifting chemistry the corrected fit is the closest estimator; on the book plant every estimator reads an
+effective factor below the mid-cascade 2.1. Test 5: the ridge is three times the net's typical error and six
+times the new fit's. Test 6: the smallest network within 10 % of the best has 2,754 weights, half of notebook
+35's; the closed loop doesn't separate the sizes. Notebook 46: the bias at a model swap doesn't matter on the
+drifting plant.
+
+**Does the estimate matter (notebooks 47 to 50; FINDINGS phase 9).** The estimate does reach the controller.
+Run on models wrong by known amounts on ten plants: a pessimistic model costs reagent, about 10 % per 0.1 in
+log; an optimistic one costs time below spec, and at +0.4 loses 7 plants of 10; the output bias is what absorbs
+moderate errors. At the feed switch the NdPr lost stays under 5 % (the 53 % recovery dip is metal in transit);
+an optimizer that knows the plant holds 99.5 % through the switch on all eight plants tried, so the dip is the
+controller's limit. Two controller weaknesses found on the way: over-saponification with a slightly wrong model,
+and plants that read 100 % purity while drifting off spec.
+
+**Software.** Plant simulations get an evaluation budget (simulate.MAX_RHS_CALLS), so a stalled run fails fast
+with a clear error; two overnight studies had hung on one (ARCHITECTURE decision 41). Notebooks 41 to 50 share
+notebooks/study_tools.py and meet the readability targets; each reruns to its stored results. Notebook 24 has a
+`--settled` switch: rerun that way, the model's gain error at each plant's design point is above 1 on 19 of 19
+plants, 3.1 to 28.0 (it said 17 of 19, up to 130; FINDINGS section 4, dated note). The numbers in FINDINGS
+phases 8 and 9 are checked by tests/test_findings_numbers.py. CHANGELOG.md and CHANGES_TO_EARLIER_RESULTS.md
+added; v1.2 tagged.
+
+### Thu Oct 22
+
+**Fair test of the physics fit, Tests 0-2 (notebook 43; FINDINGS phase 8).** Test 0: no stage-frame mix-up; the
+optical points are extraction stages. Test 1: the fit as built recovers a model-family plant within noise on 7 of
+10; on three high-factor plants it stops in a second minimum near the nominal; four starts fix all ten. Test 2:
+of ten candidates the readings pin the two separation factors and the acid exponent; the shared stage rate the fit
+used is nearly unidentifiable, densities and salt volume invisible. Fitting factors + acid exponent: Pr/(La+Ce)
+error median 0.002, worst 0.013 (net 0.004 / 0.179; the old set 0.058 / 0.368). Closed loop at 120 h doesn't
+separate the sets; on easy plants the controller is still moving at 120 h. Solver finding: the default steady-state
+ladder doesn't settle the main case's slowest mode; notebook 24's gain matrix redone at rest (condition number 43
+-> 204, dated note in FINDINGS section 4; the per-plant model errors not rerun). Notebook 35 reads the core count
+(all but two, at least one) instead of 11 / 10 / 8. Stopped before Test 3 for Emilio's review of the parameter choice.
+
+### Wed Oct 21
+
+**The review session's questions, answered with runs** (FINDINGS phase 7). Notebook 41 replays the five plants that dip below
+spec on the feed switch with the full state: with the plant's true model none dips, so the model is the cause;
+it lets the scrub-to-organic ratio fall on a separation factor these plants don't have. Notebook 42 reruns the
+least-squares fit of notebook 35 five ways (stage-rate factor fixed, more evaluations, smaller step, tighter
+solve): all stay at 0.107-0.109 against the net's 0.011, and on every plant the fit ends below the cost of the
+true answer, so the model, not the search, is what limits it. Notebook 01 now writes the stage profile as a
+table (`runs/steady_profile_<config>.csv`). The cascade solve-time question (notebook 20) traced to the level
+loops stepping the plant every 0.025 h, not the QP. FINDINGS section 4 corrected: model error above 1 on 17
+of 19 plants (it said 15). The public repo's main, unchanged since Oct 19 afternoon, is tagged v1.1.
+
 ### Mon Oct 19
 
 **README results redone, twice.** First as comparisons against a plant nobody touches; dropped, since no

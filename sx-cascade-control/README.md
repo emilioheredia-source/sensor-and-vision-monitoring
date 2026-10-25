@@ -1,5 +1,7 @@
 # Simulating and controlling a rare earth solvent extraction circuit
 
+**Version 1.2**, October 25, 2026. [What changed in this version](#whats-new-in-v12) (or the [full changelog](CHANGELOG.md))
+
 A rare earth solvent extraction circuit, built on a computer from the
 chemistry and published data, and probed to see how it behaves: what it
 needs, what upsets it, where it's sensitive, what a controller can and can't
@@ -8,6 +10,30 @@ readings that didn't hold up and what replaced them.
 
 This is a simulation. None of it is plant data, and it hasn't been checked
 against a running circuit.
+
+## What's new in v1.2
+
+The controller keeps being tested on harder and more realistic cases, to find where it falls short; each version says what was found and what was done about it.
+
+- The physics fit now adjusts the numbers the readings can see and the controller needs: the two
+  separation factors and the acid exponent. It's the closest estimator on the test plants.
+- The estimators were tested on plants with physics the model leaves out, and a network half the
+  size does as well as the one used before.
+- How accurate the model needs to be depends on which way it's wrong (below, under What the model
+  shows).
+- The purity dip at a feed switch is the controller's limit, not the plant's.
+- Steady states are solved all the way to rest, and a simulation that stalls stops with a clear
+  error.
+
+Earlier results that changed:
+
+- v1.1 said the network read the separation factors 4 to 7 times closer than the physics fit. With
+  the right numbers fitted, the physics fit is closer.
+- The plant is more lopsided than first measured. At each plant's own design point the model's gains
+  are off by more than a controller can stand on all 19 plants, not 17.
+
+What changed in each version is in [CHANGELOG.md](CHANGELOG.md), and the earlier results that
+changed, with the reasons, are in [CHANGES_TO_EARLIER_RESULTS.md](CHANGES_TO_EARLIER_RESULTS.md).
 
 ## At a glance
 
@@ -18,11 +44,11 @@ against a running circuit.
 | Optimization | Steady-state design with IPOPT: least reagent for a given purity and recovery; stage-count sweep; what operating margin costs and buys. `src/design.py`, notebooks 02, 04, 26 |
 | Model predictive control | Linear MPC on a receding horizon, re-linearized on the nonlinear model as it runs, with purity, recovery and acidity constraints, over a PI level loop on each settler. Tested on 20 plants drawn inside published ranges, 8 upsets each. `src/mpc.py`, [APPENDIX_B_control.md](APPENDIX_B_control.md), notebook 14 |
 | Sensors and state estimation | A Kalman filter on the instrument readings, with each instrument's calibration drift as a state. Which instruments, where, for what cost: on-line XRF at the ends, UV-Vis ratios inside the cascade, lab assays. `src/estimator.py`, notebooks 18, 31 |
-| System identification, drift and faults | Separation factors and stage efficiency fitted to noisy readings; a daily refit follows a slow loss of separation; the trend of the fit flags a sudden fault. Notebooks 31, 32, 33 |
-| Machine learning | A neural network (PyTorch) trained on simulated plants that reads the separation factors from the instruments: about 4 to 7 times closer than the physics fit on the main case, in a millisecond, and only as good as the plants it learned from. A PPO policy (stable-baselines3) compared with the MPC on the same episodes. Notebooks 35, 09 |
+| System identification, drift and faults | The numbers to fit chosen by what the readings can see and what the controller needs: the two separation factors and the acid exponent, fitted to noisy readings from several starting points. A daily refit follows a slow loss of separation; the trend of the fit flags a sudden fault. Notebooks 31, 32, 33, 43 |
+| Machine learning | A neural network (PyTorch) trained on simulated plants that reads the separation factors from the instruments in a millisecond. On the test plants it's close to the physics fit on a typical plant (0.004 against 0.002) and further off on the worst (0.18 against 0.013), and it's only as good as the plants it learned from. A network half the size does as well. A PPO policy (stable-baselines3) compared with the MPC on the same episodes. Notebooks 35, 43 to 45, 09 |
 | Deployment and safety | The controller goes in steps (shadow, advisory, closed loop) inside move limits, with a watchdog and a journal; a feed-loss interlock; model updates checked, reviewed, versioned and reversible. `src/deployment.py`, `src/interlock.py`, `src/model_registry.py`, notebooks 34, 36, 37 |
 | Plant integration | An optional way to run: the plant as an OPC UA server (asyncua) with tagged process values and setpoints, the controller as a client that sees only tags, and a small historian that records every tag in SQLite. A run over OPC UA gives exactly the same moves as the normal in-process run. `src/plant_server.py`, `src/historian.py`, notebook 38 |
-| Software | A desktop workbench to set up, run, watch and compare runs, with a report of each run and session logs; settings saved as run files; every number in the parameter file states its source; 342 automated tests, including a check against reference runs to the last bit. `workbench/`, `params/`, `tests/` |
+| Software | A desktop workbench to set up, run, watch and compare runs, with a report of each run and session logs; settings saved as run files; every number in the parameter file states its source; 331 automated tests, including a check of the numbers the documents quote against the result tables, and a check against reference runs to the last bit. `workbench/`, `params/`, `tests/` |
 
 ## The process
 
@@ -156,15 +182,19 @@ scrub.
 More detail: the sensors and the estimator in [Appendix B, B.4 to B.7](APPENDIX_B_control.md#b4-sensors-srcsensorspy); where the instruments go in [FINDINGS, phase 5](FINDINGS_why_hard.md#phase-5-2026-10-18-from-a-simulation-toward-a-plant).
 
 **Learn the plant, under supervision.** A model is only as good as its numbers,
-and a plant's numbers change. The slowest layer fits a few of them, the
-separation factors and how close stages get to equilibrium, to what the
-instruments read, once a day. The fit is a proposal: an engineer looks at it
+and a plant's numbers change. The slowest layer fits a few of them to what the
+instruments read, once a day: the two separation factors and the acid exponent,
+which says how strongly extraction answers to acidity. Those three were picked by
+checking every number in the model: how much the readings change when it moves,
+which ones the readings can't tell apart, and how much getting it wrong changes
+the control. A fourth, all the extraction constants moving together, can't be
+told apart from the acid exponent, and the controller does as well without it. The fit is a proposal: an engineer looks at it
 before the controller uses it. Letting the model learn on its own in
 production would let one bad reading, a fouled probe or a fault get built into
 it, and the controller would then act on that. The same daily fit, watched over
 time, also tells a slow drift from a sudden fault.
 
-More detail: [FINDINGS, phases 3 and 4](FINDINGS_why_hard.md#phases-3-and-4-2026-10-17-a-plant-closer-to-the-book-and-identify-then-control) (identify, then control), [phase 5](FINDINGS_why_hard.md#phase-5-2026-10-18-from-a-simulation-toward-a-plant) (supervised updates, the learned estimator).
+More detail: [FINDINGS, phases 3 and 4](FINDINGS_why_hard.md#phases-3-and-4-2026-10-17-a-plant-closer-to-the-book-and-identify-then-control) (identify, then control), [phase 5](FINDINGS_why_hard.md#phase-5-2026-10-18-from-a-simulation-toward-a-plant) (supervised updates, the learned estimator), [phase 8](FINDINGS_why_hard.md#phase-8-2026-10-22-a-fair-test-of-the-physics-fit-tests-0-to-2-notebook-43) (which numbers to fit, and the fit against the network).
 
 **Onto a plant in steps.** A controller goes on a plant in stages: shadow first (it
 reads the plant and says what it would do, nothing more), then advisory (an
@@ -258,14 +288,25 @@ These are properties of the simulated plant. A real plant will have its own.
   plant left alone loses NdPr to the raffinate. Going to a leaner one, the
   organic is suddenly too much and pulls La and Ce into the product: 14 of 20
   plants went off spec with nobody acting, none with the controller.
-- Learning the plant's numbers from its readings works, within limits. The
-  physics fit comes out biased when the plant differs from the model in more
-  ways than it fits; a neural network trained on simulated plants reads them
-  more closely but misses at the edge of what it was trained on. On the plant
+- Learning the plant's numbers from its readings works, within limits. Fitting
+  the right numbers is what counts: with the two separation factors and the acid
+  exponent, the physics fit was the closest estimator on the test plants,
+  including plants with settlers, entrainment and drifting chemistry the model
+  leaves out. A neural network trained on simulated plants is nearly as close on
+  a typical plant and misses at the edge of what it was trained on. On the plant
   run with margin, refitting daily mostly lets it run on less organic (about
   6 % less), and a safety ceiling on the handles has to be sized from the
   upsets: at 20 % it put 7 of 20 plants off spec on the feed switch; at 50 %
   the result was close to having no ceiling at all.
+- How accurate the model needs to be depends on which way it's wrong. A model
+  that thinks the plant separates worse than it does keeps the product on spec
+  and costs reagent, about 10 % more for each 10 % of error. One that thinks it
+  separates better gets back on spec more slowly, and at the largest error tried,
+  about 50 %, lost 7 plants of 10. The controller's running correction absorbs
+  moderate errors; with it switched off, about 20 % was enough to lose a plant.
+- The purity dip at a feed switch is the controller's limit, not the plant's. An
+  optimizer that knows the plant exactly holds 99.5 % through the switch on
+  every plant tested, losing under 5 % of the NdPr to the raffinate.
 
 More detail: [FINDINGS_why_hard.md](FINDINGS_why_hard.md#the-short-version).
 
@@ -308,6 +349,7 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pixi run python -m pytest tests
 | Document | What's in it | How current |
 | --- | --- | --- |
 | [FINDINGS_why_hard.md](FINDINGS_why_hard.md) | Why the separation is sensitive, with the literature | Current |
+| [CHANGELOG.md](CHANGELOG.md) | What changed in each version | Current |
 | [APPENDIX_A_model.md](APPENDIX_A_model.md) | The model: assumptions, equations, what an SX engineer would question | Equations current. Worked numbers are for the first 30 L plant, not the main case (note at the top) |
 | [APPENDIX_A_parameters.md](APPENDIX_A_parameters.md) | Every number in the parameter file, with where it came from | Current. The main case's own settings are in `configs/ndpr_main.toml` |
 | [APPENDIX_B_control.md](APPENDIX_B_control.md) | The design optimizer, the MPC, the estimator, as equations | Current for what it covers. The later pieces (level loops, acidity floor, interlock, guard) are in ARCHITECTURE.md (note at the top) |

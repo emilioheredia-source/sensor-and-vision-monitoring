@@ -367,7 +367,7 @@ label(ax, 8.7, 4.55, "organic-flow offset;\nfeed estimate when\nthere's no analy
 # a bad reading or a fault into the model.
 SUP = SLOT[4]
 box(0.2, 2.2, 3.7, 1.95, "Model update (daily, supervised)",
-    "fit the separation factors and stage\nrate to the readings; an engineer\nreviews each update before it goes live")
+    "fit the separation factors and the acid\nexponent to the readings; an engineer\nreviews each update before it goes live")
 ax.plot([5.0, 3.9], [3.15, 3.15], color=SUP, lw=1.4, ls="-.")
 arrow(ax, (4.0, 3.15), (3.9, 3.15), SUP)
 label(ax, 4.45, 3.25, "readings,\nestimate", size=6.8)
