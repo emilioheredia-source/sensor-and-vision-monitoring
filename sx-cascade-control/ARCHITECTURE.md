@@ -938,7 +938,37 @@ recovery the share of the product-side metal fed that leaves in the product.
     as failed, the fallback ladder moves on, and if every rung fails the run
     ends with "integration stalled". Reference runs unchanged.
 
-## Open
+42. **A rest-point check in the MPC (Oct 24; v1.3).** The steady-state floors
+    (decision 21) use the long-run view linearized at the model state. Near
+    100 % purity that view is flat: on plants that separate easily the
+    controller held purity at 99.99 % while the plant, on the handles held, was
+    heading for about 94.5 % (FINDINGS phase 10, notebook 54). With
+    MPCSettings.rest_check_every = N, every N steps the model is solved to rest
+    on the handles held now (Newton from the model state, else 800 h of
+    integration first), linearized there, and the floors are anchored on that
+    rest point and its long-run gains until the next check. Off by default
+    (N = 0), so every earlier run is unchanged (reference runs bit-exact); the
+    v1.3 studies use N = 24, every 12 h. The other two v1.3 changes, the
+    saponification cap from the acid balance (notebook 52) and the 2-hour refit
+    (notebook 51), are built in the study notebooks around the controller, not
+    in src.
+
+43. **Three more MPC settings, all off by default (Oct 25; v1.3).** Each was added to
+    test one idea on its own (FINDINGS phase 10); with all three off every
+    earlier run is unchanged (reference runs bit-exact).
+    - `recovery_from_losses`: the recovery the controller holds is 1 - NdPr in
+      the raffinate / NdPr fed instead of product over feed (notebook 60).
+      No better: the two differ only while the stock moves, and neither sees
+      it.
+    - `log_impurity`: the purity output and its floors in -log10(1 - purity),
+      each floor's slack scaled by the slope there so a thousandth of purity
+      below a floor costs what it did (notebook 61). Halves the drift, doesn't
+      stop it.
+    - `acid_band` (with `w_acid_band`): a second soft acid floor above the
+      first, so the cost starts before the floor (notebook 62). Keeps a right
+      model off the floor; can't help a wrong one, whose predicted acid is
+      wrong.
+
 
 - **Pump-stop interlock.** The controller's behaviour after a pump stop is
   fragile (decision 26). What a plant does: when the feed flow drops below a

@@ -98,22 +98,33 @@ def design(name: str):
     return cmap, r2
 
 
-def window(plant, u, x, heavy, fed) -> float:
+def _purity_recovery(plant, x, u, heavy_fed: tuple) -> tuple:
+    """Product purity and recovery at state x and inputs u.
+    heavy_fed: (the product side's mask, the product metal fed in mol/h)."""
+    heavy, fed = heavy_fed
+    o = plant.outlets(x, u.numpy())
+    cp = np.atleast_1d(o["c_prod"])
+    return cp[heavy].sum() / cp.sum(), float(o["Q_prod"]) * cp[heavy].sum() / fed
+
+
+def window(plant, u, x, heavy_fed: tuple) -> float:
     """Width of the scrub band (strip tied, everything else held) meeting purity >= spec and
-    recovery >= 95 %, as a percentage of the scrub flow at u. NaN if it can't be bracketed."""
+    recovery >= 95 %, as a percentage of the scrub flow at u. NaN if it can't be bracketed.
+    heavy_fed: (the product side's mask, the product metal fed in mol/h)."""
     q0 = float(u.Q_scrub)
     cache = {}
 
     def out(q):
+        """Purity and recovery at rest with the scrub flow at q (strip tied), cached."""
         if q not in cache:
             uu = u.replace(Q_scrub=q, Q_strip=NET + q)
-            xx = steady_state(plant, uu, x0=x)
-            o = plant.outlets(xx, uu.numpy())
-            cp = np.atleast_1d(o["c_prod"])
-            cache[q] = (cp[heavy].sum() / cp.sum(), float(o["Q_prod"]) * cp[heavy].sum() / fed)
+            cache[q] = _purity_recovery(plant, steady_state(plant, uu, x0=x), uu, heavy_fed)
         return cache[q]
 
-    def cross(which, level, lo, hi, rising):
+    def cross(which, level, bracket, rising):
+        """The scrub flow, in bracket (lo, hi), where output `which` (0 purity, 1 recovery) crosses `level`, by
+        bisection; NaN if it doesn't cross there. rising: whether the output grows with the scrub flow."""
+        lo, hi = bracket
         f = lambda q: (out(q)[which] - level) * (1 if rising else -1)      # noqa: E731
         if f(lo) > 0 or f(hi) < 0:
             return np.nan
@@ -122,12 +133,14 @@ def window(plant, u, x, heavy, fed) -> float:
             lo, hi = (mid, hi) if f(mid) < 0 else (lo, mid)
         return 0.5 * (lo + hi)
 
-    s_pur = cross(0, SPEC, 0.7 * q0, q0 * 1.001, rising=True)          # purity rises with scrub
-    s_rec = cross(1, RUN_RECOVERY, q0 * 0.999, 1.5 * q0, rising=False)  # recovery falls with scrub
+    s_pur = cross(0, SPEC, (0.7 * q0, q0 * 1.001), rising=True)          # purity rises with scrub
+    s_rec = cross(1, RUN_RECOVERY, (q0 * 0.999, 1.5 * q0), rising=False)  # recovery falls with scrub
     return 100.0 * (s_rec - s_pur) / q0
 
 
 def evaluate(name: str):
+    """One design on the twenty plants: as built and after retuning, written to its own file (skipped if
+    already there)."""
     out_file = OUT_DIR / f"{name}.csv"
     if out_file.exists():
         return
@@ -138,38 +151,55 @@ def evaluate(name: str):
         OUT_DIR.mkdir(parents=True, exist_ok=True)
         out_file.write_text("seed,design_failed\n0,1\n")
         return
-    st, basis, size = name.split("_")
-    p_true = sized_params(SIZES[size])                        # the real plant's starting numbers
+    size_L = SIZES[name.split("_")[2]]
+    p_true = sized_params(size_L)                             # the real plant's starting numbers
     heavy = np.array(heavy_mask(p_true, BASE.cut))
     fed = float(d.u.Q_feed) * np.asarray(d.u.c_feed, float)[heavy].sum()
-    stage_volume = cmap.N * 5.0 * SIZES[size]                  # mixer + settler (4 x mixer), every stage
-    rows = []
-    for seed in SEEDS:
-        m = Mismatch(seed=seed, strength=1.0, generator="ratios")
-        plant = Circuit(cmap, perturbed_params(p_true, m), scrub_reflux=True)
-        k = stage_efficiency_factors(cmap.N, m)
-        u_built = d.u.replace(k_factor=k)
-        x_b = steady_state(plant, u_built)
-        o = plant.outlets(x_b, u_built.numpy())
-        cp = np.atleast_1d(o["c_prod"])
-        pur_b, rec_b = cp[heavy].sum() / cp.sum(), float(o["Q_prod"]) * cp[heavy].sum() / fed
-        r = optimize_operating_point(plant, u_built, BASE.cut, RUN_PURITY, OPERATE_FREE, link=reflux_link(NET),
-                                     x_guess=x_b, objective="reagent", min_recovery=RUN_RECOVERY)
-        win = window(plant, r.u, r.x, heavy, fed) if r.success else np.nan
-        rows.append({"seed": seed, "built_purity": pur_b, "built_recovery": rec_b,
-                     "built_on_spec": int(pur_b >= SPEC and rec_b >= RUN_RECOVERY - 5e-4),
-                     "retune_ok": int(r.success), "retune_reagent": r.reagent_mol_per_h if r.success else np.nan,
-                     "retune_Q_org": float(r.u.Q_org) if r.success else np.nan,
-                     "retune_Q_scrub": float(r.u.Q_scrub) if r.success else np.nan,
-                     "window_pct": win})
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    rows = [_on_plant(seed, cmap, d, (p_true, heavy, fed)) for seed in SEEDS]
     meta = {"design_Q_org": float(d.u.Q_org), "design_Q_scrub": float(d.u.Q_scrub),
             "design_sapon": float(d.u.saponified_fraction), "design_h_scrub": float(d.u.h_scrub),
-            "design_reagent": d.reagent_mol_per_h, "stages": cmap.N, "stage_volume_L": stage_volume}
+            "design_reagent": d.reagent_mol_per_h, "stages": cmap.N,
+            "stage_volume_L": cmap.N * 5.0 * size_L}         # mixer + settler (4 x mixer), every stage
+    _write_rows(out_file, rows, meta)
+    _report(name, rows, meta, t0)
+
+
+def _on_plant(seed: int, cmap, d, truth: tuple) -> dict:
+    """One realistic plant on design d: as built, then retuned (the oracle), and the room around the
+    retuned point. truth: (the plant's starting parameters, the product side's mask, the metal fed)."""
+    p_true, heavy, fed = truth
+    m = Mismatch(seed=seed, strength=1.0, generator="ratios")
+    plant = Circuit(cmap, perturbed_params(p_true, m), scrub_reflux=True)
+    u_built = d.u.replace(k_factor=stage_efficiency_factors(cmap.N, m))
+    x_b = steady_state(plant, u_built)
+    pur_b, rec_b = _purity_recovery(plant, x_b, u_built, (heavy, fed))
+    r = optimize_operating_point(plant, u_built, BASE.cut, RUN_PURITY, OPERATE_FREE, link=reflux_link(NET),
+                                 x_guess=x_b, objective="reagent", min_recovery=RUN_RECOVERY)
+    win = window(plant, r.u, r.x, (heavy, fed)) if r.success else np.nan
+    return {"seed": seed, "built_purity": pur_b, "built_recovery": rec_b,
+            "built_on_spec": int(pur_b >= SPEC and rec_b >= RUN_RECOVERY - 5e-4),
+            **_retune_columns(r), "window_pct": win}
+
+
+def _retune_columns(r) -> dict:
+    """The retuned point's columns: feasible or not, reagent, organic and scrub flows (NaN if infeasible)."""
+    if not r.success:
+        return {"retune_ok": 0, "retune_reagent": np.nan, "retune_Q_org": np.nan, "retune_Q_scrub": np.nan}
+    return {"retune_ok": 1, "retune_reagent": r.reagent_mol_per_h, "retune_Q_org": float(r.u.Q_org),
+            "retune_Q_scrub": float(r.u.Q_scrub)}
+
+
+def _write_rows(out_file: Path, rows: list, meta: dict):
+    """One row per plant, each with the design's numbers appended."""
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
     with open(out_file, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0]) + list(meta))
         w.writeheader()
         w.writerows([{**r, **meta} for r in rows])
+
+
+def _report(name: str, rows: list, meta: dict, t0: float):
+    """One line per design: its flows, how many plants are on spec as built and retunable, the median window."""
     ok = sum(r["built_on_spec"] for r in rows)
     print(f"{name}: design Q_org {meta['design_Q_org']:.0f} scrub {meta['design_Q_scrub']:.0f} reagent "
           f"{meta['design_reagent']:.0f}; on spec as built {ok}/20; retune feasible "
@@ -178,6 +208,7 @@ def evaluate(name: str):
 
 
 def summary():
+    """The designs side by side, from their files: on spec as built, retune feasible, reagent, window."""
     rows = []
     for name in DESIGNS:
         f = OUT_DIR / f"{name}.csv"

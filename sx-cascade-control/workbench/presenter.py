@@ -189,16 +189,20 @@ class _LoggedView:
     Everything else passes straight through."""
 
     def __init__(self, view):
+        """Wrap the view."""
         self._view = view
 
     def __getattr__(self, name):
+        """Everything else is the view's own."""
         return getattr(self._view, name)
 
     def set_status(self, text: str):
+        """Log the status line, then show it."""
         log.info(text)
         self._view.set_status(text)
 
     def show_error(self, text: str):
+        """Log the error, then show it."""
         log.error(text)
         self._view.show_error(text)
 

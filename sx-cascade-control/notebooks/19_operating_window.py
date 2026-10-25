@@ -40,6 +40,7 @@ NET = float(u0.Q_strip) - float(u0.Q_scrub)
 NDPR_IN = float(u0.Q_feed) * np.asarray(u0.c_feed, float)[heavy].sum()
 SPEC, DESIGN_PURITY = rc.targets()[0], rc.design_purity
 RECOVERY = rc.targets()[1]
+TOL = 0.02                                   # bisection stops when the scrub bracket is this narrow, L/h
 _cache = {}
 
 
@@ -59,13 +60,15 @@ def outcome(q_org: float, q_scrub: float) -> tuple[float, float]:
     return result
 
 
-def crossing(q_org: float, which: int, level: float, lo: float, hi: float, tol: float = 0.02) -> float:
-    """Scrub flow where purity (which=0, rising) or recovery (which=1, falling) crosses `level`."""
+def crossing(q_org: float, which: int, level: float, bracket: tuple) -> float:
+    """Scrub flow where purity (which=0, rising) or recovery (which=1, falling) crosses `level`,
+    searched by bisection inside bracket = (lo, hi) scrub flows, to within TOL L/h."""
+    lo, hi = bracket
     sign = 1 if which == 0 else -1
     f_lo, f_hi = sign * (outcome(q_org, lo)[which] - level), sign * (outcome(q_org, hi)[which] - level)
     if f_lo > 0 or f_hi < 0:
         return np.nan                                   # not bracketed in [lo, hi]
-    while hi - lo > tol:
+    while hi - lo > TOL:
         mid = 0.5 * (lo + hi)
         if sign * (outcome(q_org, mid)[which] - level) < 0:
             lo = mid
@@ -81,9 +84,9 @@ print(" Q_org   scrub at purity 99 %   at 99.5 %   at recovery 95 %   window (sp
 for f in (0.90, 0.95, 0.98, 1.0, 1.02, 1.05, 1.10, 1.15, 1.20):
     q = f * q_design
     lo, hi = 0.6 * f * float(u0.Q_scrub), 1.6 * f * float(u0.Q_scrub)    # brackets the window for this design
-    s_spec = crossing(q, 0, SPEC, lo, hi)
-    s_des = crossing(q, 0, DESIGN_PURITY, lo, hi)
-    s_rec = crossing(q, 1, RECOVERY, lo, hi)
+    s_spec = crossing(q, 0, SPEC, (lo, hi))
+    s_des = crossing(q, 0, DESIGN_PURITY, (lo, hi))
+    s_rec = crossing(q, 1, RECOVERY, (lo, hi))
     rows.append((q, s_spec, s_des, s_rec, s_rec - s_spec, s_rec - s_des))
     print(f"  {q:5.0f}   {s_spec:8.2f}            {s_des:8.2f}    {s_rec:8.2f}          "
           f"{s_rec - s_spec:+7.2f}         {s_rec - s_des:+7.2f}", flush=True)

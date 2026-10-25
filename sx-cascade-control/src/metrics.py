@@ -237,6 +237,8 @@ def transition_cost(circuit: Circuit, traj: Trajectory, cut: str, spec: float,
         interface_excursion_m_h   integral of how far any interface sits outside its window
         reagent_mol               base dose (saponification) + strip acid + scrub acid fed, over the run
         purity_series             product purity at every time point
+
+    Why five parameters: what was run (circuit, trajectory) and how to score it (cut, spec, settling band) are separate facts.
     """
     # The point outputs at every saved time, then each one as a time series.
     # Judgement call: the saved times are the 0.5 h control grid, so a dip shorter than a step can

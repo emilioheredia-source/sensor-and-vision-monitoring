@@ -141,9 +141,18 @@ with open(HERE / "runs" / f"sensor_layouts_{CONFIG}.csv", "w", newline="") as f:
                   + f"   cond {cond:.2g}")
 
 
+def shade_scrub(ax, stages) -> None:
+    """Shade the scrub stages on one panel and draw its zero line."""
+    from src.plotting import GRID, INK2
+    js = stages[sections == "scrub"]
+    ax.axvspan(js[0] - 0.5, js[-1] + 0.5, color=GRID, alpha=0.5, lw=0)
+    ax.axhline(0, color=INK2, lw=0.6)
+
+
 def figure():
+    """How much each unknown moves the aqueous Pr and Nd at every stage, and the Nd/Pr ratio, as a figure."""
     import matplotlib.pyplot as plt
-    from src.plotting import FIGURES, GRID, INK2, SLOT, style
+    from src.plotting import FIGURES, INK2, SLOT, style
     style()
     fig, axes = plt.subplots(3, 1, figsize=(9.0, 7.6), sharex=True)
     stages = np.arange(N)
@@ -165,11 +174,7 @@ def figure():
     axes[2].legend(fontsize=7, ncol=3, frameon=False)
     axes[2].set_xlabel("stage, from the raffinate end")
     for ax in axes:
-        for name, color in (("extraction", None), ("scrub", GRID), ("strip", None)):
-            js = stages[sections == name]
-            if color:
-                ax.axvspan(js[0] - 0.5, js[-1] + 0.5, color=color, alpha=0.5, lw=0)
-        ax.axhline(0, color=INK2, lw=0.6)
+        shade_scrub(ax, stages)
     for name in ("extraction", "scrub", "strip"):
         js = stages[sections == name]
         axes[0].text((js[0] + js[-1]) / 2, axes[0].get_ylim()[1], name, ha="center", va="bottom", fontsize=8, color=INK2)

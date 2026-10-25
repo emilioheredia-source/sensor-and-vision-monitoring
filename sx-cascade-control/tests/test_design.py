@@ -33,6 +33,8 @@ def _u(cmap, Q_org=1200.0, Q_scrub=300.0, Q_strip=600.0, h_scrub=0.5, sapon=0.4)
 
     Flows L/h (feed fixed at 600), acids mol/L (feed 0.05, strip 2.0), the
     scrub carries no metal of its own, and every jackleg sits at 0.41 m.
+
+    Why six parameters: the map and the five handles' starting values, each with a default.
     """
     return Inputs(Q_org, 600.0, Q_scrub, Q_strip, DIDYMIUM, 0.05, np.zeros(n), h_scrub, 2.0, sapon,
                   np.full(cmap.N, 0.41))

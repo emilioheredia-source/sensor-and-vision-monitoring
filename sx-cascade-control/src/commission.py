@@ -86,6 +86,8 @@ def trim_under_control(plant: Circuit, x_rest: np.ndarray, k_factor: np.ndarray,
     Returns:
         the plant at rest under the trimmed inputs, and those inputs (k_factor as the
         controller's model sees it, i.e. nominal).
+
+    Why five parameters: the plant, where it starts, its own stage rates, the controller and how long to run are separate facts the caller already has.
     """
     from .loop import run_closed_loop
     traj, _ = run_closed_loop(plant, x_rest, controller, None, t_settle, plant_k_factor=k_factor,

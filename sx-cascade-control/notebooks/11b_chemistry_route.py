@@ -24,6 +24,11 @@ plt.rcParams.update({"font.family": ["Segoe UI", "DejaVu Sans"], "figure.facecol
 
 
 def box(ax, x, y, w, h, title, sub, edge):
+    """A rounded box at (x, y), w by h, with a bold title at the top and a smaller line underneath.
+
+    Its parameters are kept, more than the guidelines like: each is a coordinate or a style setting of
+    one drawing call, and bundling them would make every call below harder to read.
+    """
     ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.02,rounding_size=0.12",
                                 fc=SURFACE, ec=edge, lw=1.6))
     ax.text(x + w / 2, y + h - 0.22, title, ha="center", va="top", fontsize=10, color=INK, fontweight="bold")
@@ -31,11 +36,21 @@ def box(ax, x, y, w, h, title, sub, edge):
 
 
 def arrow(ax, p, q, color, lw=1.6, ls="-"):
+    """An arrow from point p to point q.
+
+    Its parameters are kept, more than the guidelines like: each is a coordinate or a style setting of
+    one drawing call, and bundling them would make every call below harder to read.
+    """
     ax.add_patch(FancyArrowPatch(p, q, arrowstyle="-|>", mutation_scale=12, color=color, lw=lw,
                                  linestyle=ls, shrinkA=0, shrinkB=0))
 
 
 def text(ax, x, y, s, size=8, color=INK2, ha="left", va="center", weight="normal"):
+    """Text at (x, y) in the figure's style.
+
+    Its parameters are kept, more than the guidelines like: each is a coordinate or a style setting of
+    one drawing call, and bundling them would make every call below harder to read.
+    """
     ax.text(x, y, s, ha=ha, va=va, fontsize=size, color=color, fontweight=weight)
 
 

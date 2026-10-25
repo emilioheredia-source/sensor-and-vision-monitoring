@@ -388,7 +388,10 @@ class Claim:
 
 def C(doc, name, template, fmt=whole, table="", where=None, column="", transform=None,
       compute=None, xfail=""):
-    """Shorthand for a Claim, with `where` given as a plain dict."""
+    """Shorthand for a Claim, with `where` given as a plain dict.
+
+    Why ten parameters: one keyword per Claim field (the dataclass above), most with defaults.
+    """
     return Claim(doc, name, template, fmt, table, tuple((where or {}).items()), column,
                  transform, compute, xfail)
 
@@ -423,6 +426,7 @@ def matrix_row_claims(doc):
     claims = []
     for plant, controller, label in rows:
         def offspec(plant=plant, controller=controller):
+            """The off_spec_mol cells for this plant and controller, one per upset."""
             return [cell(MATRIX, "off_spec_mol", plant=plant, controller=controller, upset=u)
                     for u in upsets]
         claims.append(C(doc, f"matrix_{plant}_{controller}",
@@ -665,6 +669,7 @@ def main_better(upset):
 
 
 def main_median(upset, controller):
+    """The median over the main case's plants of what this controller loses on this upset (main_seed_costs)."""
     return float(main_seed_costs().loc[upset][controller].median())
 
 
@@ -677,6 +682,7 @@ def twenty_plant_traces(variant=""):
 
 
 def plants_below_spec(variant=""):
+    """How many of the twenty plants go below the 99 % spec at some point (notebook 40's traces)."""
     return sum(int(p.min() < 0.99) for _, p, _ in twenty_plant_traces(variant))
 
 
@@ -701,6 +707,7 @@ def main_sensitivity(section=None):
 
 
 def margin_row(case):
+    """The row of operating_margin_summary.csv for this case."""
     return row("operating_margin_summary.csv", case=case)
 
 

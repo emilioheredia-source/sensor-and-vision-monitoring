@@ -10,25 +10,31 @@ class Stub:
     u_nominal = SimpleNamespace(Q_feed=600.0)
 
     def __init__(self):
+        """Organic flow at 100 L/h, no re-syncs yet."""
         self.q_org, self.last, self.resyncs = 100.0, {}, 0
 
     def handles(self):
+        """The handles it holds."""
         return {"Q_org": self.q_org, "saponified_fraction": 0.4}
 
     def step(self, obs):
+        """One interval: the organic flow goes up by 1 L/h."""
         self.q_org += 1.0
         self.last = {"qp_ok": True}
         return self.handles()
 
     def resync(self):
+        """Count the re-syncs."""
         self.resyncs += 1
 
 
 def feed(q):
+    """An observation carrying only the feed flow, L/h."""
     return SimpleNamespace(Q_feed=q)
 
 
 def test_trip_hold_and_hand_back_after_two_hours_of_feed():
+    """Trip when the feed stops, hold, restart the wait on a new drop, hand back after two hours of feed."""
     stub = Stub()
     lock = FeedLossInterlock(stub, rearm_h=2.0, stop_base=True)
     assert lock.step(feed(600.0))["Q_org"] == 101.0                   # armed: the controller steps

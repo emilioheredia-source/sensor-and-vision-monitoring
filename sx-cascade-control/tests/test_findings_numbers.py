@@ -43,6 +43,16 @@ def col(name: str, column: str, **where) -> np.ndarray:
     return np.array([float(r[column]) for r in rows(name) if all(r[k] == str(v) for k, v in where.items())])
 
 
+def matching(name: str, **where) -> list:
+    """The rows of runs/<name> whose columns equal `where` (string comparison)."""
+    return [r for r in rows(name) if all(r[k] == str(v) for k, v in where.items())]
+
+
+def numbers(rows_: list, column: str) -> list:
+    """One column of some rows as floats, skipping blanks."""
+    return [float(r[column]) for r in rows_ if r[column] != ""]
+
+
 def err(name: str, est: str, truth="beta_pl_true", **where) -> np.ndarray:
     """|estimate - truth| for each matching row."""
     return np.abs(col(name, est, **where) - col(name, truth, **where))
@@ -50,78 +60,101 @@ def err(name: str, est: str, truth="beta_pl_true", **where) -> np.ndarray:
 
 # ---- formats: how the text rounds -----------------------------------------------------------------
 def f1(v):
+    """One decimal, as the text writes it."""
     return f"{v:.1f}"
 
 
 def f2(v):
+    """Two decimals."""
     return f"{v:.2f}"
 
 
 def f3(v):
+    """Three decimals."""
     return f"{v:.3f}"
 
 
 def f4(v):
+    """Four decimals."""
     return f"{v:.4f}"
 
 
 def pct1(v):
+    """A fraction as a percentage, one decimal."""
     return f"{100 * v:.1f}"
 
 
 def pct2(v):
+    """A fraction as a percentage, two decimals."""
     return f"{100 * v:.2f}"
 
 
 def whole(v):
+    """A whole number with thousands separators."""
     return f"{v:,.0f}"
 
 
 def tens(v):
+    """Rounded to the nearest ten, with thousands separators."""
     return f"{round(v, -1):,.0f}"
 
 
 def signed2(v):
+    """Two decimals with the sign shown."""
     return f"{v:+.2f}"
 
 
 def signed3(v):
+    """Three decimals with the sign shown."""
     return f"{v:+.3f}"
 
 
 # ---- the claims: (name, sentence with {} for each number, numbers, format) -----------------------
 def claims_test1():
+    """FINDINGS phase 8, Test 1: the fit as built on model-family plants, and multistart."""
+    return claims_test1_fit() + claims_test1_rate_and_net()
+
+
+def claims_test1_fit():
+    """Test 1: which fits recover the plant, the trapped ones, and multistart."""
     T1, T1M = "fair_fit_test1_ndpr_main.csv", "fair_fit_test1_ndpr_main_multistart_noloop.csv"
     good = [r for r in rows(T1) if float(r["cost_fit"]) <= float(r["cost_truth"])]
     bad = [r for r in rows(T1) if float(r["cost_fit"]) > float(r["cost_truth"])]
     low = [float(r["beta_pl_true"]) - float(r["beta_pl_fit"]) for r in bad]
-    top4 = sorted(rows(T1), key=lambda r: -float(r["beta_pl_true"]))[:4]
-    net_low = [float(r["beta_pl_true"]) - float(r["beta_pl_net"]) for r in top4]
-    s1 = next(r for r in rows(T1) if r["seed"] == "1")
-    on_bound = sum(float(r["k_fit"]) >= np.exp(0.5) - 1e-3 for r in rows(T1))
     zm = max(max(abs(float(r["z_pl"])), abs(float(r["z_np"]))) for r in rows(T1M))
-    below = [r for r in rows(T1) if float(r["true_purity_min"]) < SPEC]
-    hours = [float(r[f"{e}_hours_below_spec"]) for r in below for e in ("true", "fit", "net", "ridge")]
+    costs, truths = numbers(bad, "cost_fit"), numbers(bad, "cost_truth")
     return [
         ("test1 within noise", "recovers them within noise on {} of 10 plants", [len(good)], str),
         ("test1 z of the good fits", "(|error| / Fisher bound at most {})",
-         [max(abs(float(r["z_pl"])) for r in good)], f1),
+         [max(abs(v) for v in numbers(good, "z_pl"))], f1),
         ("test1 trapped fits", "{} to {} low at a cost of {} to {} against {} to {} at the truth",
-         [min(low), max(low), min(float(r["cost_fit"]) for r in bad), max(float(r["cost_fit"]) for r in bad),
-          min(float(r["cost_truth"]) for r in bad), max(float(r["cost_truth"]) for r in bad)],
-         (f2, f2, tens, tens, whole, whole)),
+         [min(low), max(low), min(costs), max(costs), min(truths), max(truths)], (f2, f2, tens, tens, whole, whole)),
         ("test1 multistart", "recover all ten within noise (|z| at most {})", [zm], f1),
+    ]
+
+
+def claims_test1_rate_and_net():
+    """Test 1: the shared rate's bound, the net on the highest factors, and the plants that start below spec."""
+    T1 = "fair_fit_test1_ndpr_main.csv"
+    top4 = sorted(rows(T1), key=lambda r: -float(r["beta_pl_true"]))[:4]
+    net_low = [float(r["beta_pl_true"]) - float(r["beta_pl_net"]) for r in top4]
+    s1 = matching(T1, seed=1)[0]
+    on_bound = sum(v >= np.exp(0.5) - 1e-3 for v in numbers(rows(T1), "k_fit"))
+    below = [r for r in rows(T1) if float(r["true_purity_min"]) < SPEC]
+    hours = [float(r[f"{e}_hours_below_spec"]) for r in below for e in ("true", "fit", "net", "ridge")]
+    start = numbers(below, "true_purity_min")
+    return [
         ("test1 rate bound", "(Fisher bound {}-{} % in log)", [col(T1, "bound_k_pct").min(), col(T1, "bound_k_pct").max()], whole),
         ("test1 rate on its bound", "ends on its upper bound on {} of 10", [on_bound], str),
         ("test1 net low", "the net is {} to {} low on the four highest factors", [min(net_low), max(net_low)], f2),
         ("test1 net seed 1", "(seed 1: {} against {})", [float(s1["beta_pl_net"]), float(s1["beta_pl_true"])], f3),
-        ("test1 start below spec", "(minimum {} to {} % for {}-{} h",
-         [min(float(r["true_purity_min"]) for r in below), max(float(r["true_purity_min"]) for r in below),
-          min(hours), max(hours)], (pct1, pct1, whole, whole)),
+        ("test1 start below spec", "(minimum {} to {} % for {}-{} h", [min(start), max(start), min(hours), max(hours)],
+         (pct1, pct1, whole, whole)),
     ]
 
 
 def claims_test2():
+    """FINDINGS phase 8, Test 2: which numbers the readings pin, and the check of both fitted sets."""
     ID, G, CH = "fair_fit_identify_ndpr_main.csv", "fair_fit_gains_ndpr_main.csv", "fair_fit_check_ndpr_main.csv"
     alone = {r["param"]: float(r["bound_alone"]) / float(r["spread"]) for r in rows(ID)}
     g = lambda p: col(G, "rel_change_G", param=p)                         # noqa: E731
@@ -157,10 +190,12 @@ def claims_test2():
 
 
 def claims_test3():
+    """FINDINGS phase 8, Test 3: the MAP fit, extra scrub points, and the fourth number."""
     A, BC = "fair_fit_check_ndpr_main_map.csv", "fair_fit_check_ndpr_main_uv2-4-6-12-16-20_map.csv"
     b, c = "beta_pl+beta_np+dn_acid_map_uv2-4-6-12-16-20", "beta_pl+beta_np+dn_acid+common_K_map_uv2-4-6-12-16-20"
 
     def line(name, where):
+        """One row of the table: the numbers this row quotes, in its order."""
         return [np.median(err(name, "beta_pl_fit", **where)), err(name, "beta_pl_fit", **where).max(),
                 np.median(err(name, "beta_np_fit", "beta_np_true", **where)), err(name, "beta_np_fit", "beta_np_true", **where).max(),
                 col(name, "worst_corr", **where).min(), col(name, "worst_corr", **where).max(),
@@ -178,6 +213,7 @@ def claims_test3():
 
 
 def claims_test4():
+    """FINDINGS phase 8, Test 4: the six estimators on plants with physics the model doesn't have."""
     R = "realistic_plants_ndpr_main.csv"
     est = ("fit_old", "fit_new", "ridge", "net", "ridge_mix", "net_mix")
     out = []
@@ -191,6 +227,7 @@ def claims_test4():
 
 
 def swap_claims():
+    """FINDINGS phase 8: the bias at a model swap (notebook 46)."""
     S = "model_swap_ndpr_main.csv"
     m = {(r["seed"], r["mode"]): r for r in rows(S)}
     return [
@@ -204,6 +241,7 @@ def swap_claims():
 
 
 def claims_test5_6():
+    """FINDINGS phase 8, Tests 5 and 6: the ridge on perturbed plants, and the network size."""
     P, NS, NL = "realistic_plants_ndpr_main_perturbed.csv", "net_size_ndpr_main.csv", "net_size_loop_ndpr_main.csv"
     pairs = [(e, err(P, f"{e}_beta_pl")) for e in ("fit_old", "fit_new", "ridge", "net", "ridge_mix", "net_mix")]
     mean = lambda w, d: np.mean(col(NS, "rmse_pl", width=w, depth=d) + col(NS, "rmse_np", width=w, depth=d))   # noqa: E731
@@ -220,50 +258,65 @@ def claims_test5_6():
 
 
 def phase9_claims():
-    C, SL, SB = "estimate_matters_C.csv", "switch_losses_ndpr_main.csv", "switch_bound_ndpr_main.csv"
-    ref = {r["seed"]: r for r in rows(C) if float(r["offset"]) == 0.0}
+    """FINDINGS phase 9: the dose-response, the feed switch's losses and the optimizer's bound."""
+    return dose_response_claims() + switch_claims()
 
-    def pct_vs_true(o, column):
-        sel = [r for r in rows(C) if float(r["offset"]) == o]
-        return 100 * np.mean([float(r[column]) - float(ref[r["seed"]][column]) for r in sel]) / np.mean(
-            [float(ref[r["seed"]][column]) for r in sel])
 
+def dose_offset_rows(offset: float) -> list:
+    """Part C's rows at one model error (log Pr/(La+Ce))."""
+    return [r for r in rows("estimate_matters_C.csv") if float(r["offset"]) == offset]
+
+
+def reagent_vs_true(offset: float, column: str) -> float:
+    """Part C: mean change of a reagent at one model error against the true model's, % (same plants)."""
+    ref = {r["seed"]: float(r[column]) for r in dose_offset_rows(0.0)}
+    sel = dose_offset_rows(offset)
+    return 100 * np.mean([float(r[column]) - ref[r["seed"]] for r in sel]) / np.mean([ref[r["seed"]] for r in sel])
+
+
+def dose_response_claims():
+    """Part C: the dose-response table and the reagent at -0.1 and -0.4."""
     def c_line(o):
-        sel = [r for r in rows(C) if float(r["offset"]) == o]
-        return [min(float(r["purity_end"]) for r in sel), np.mean([float(r["hours_below_spec"]) for r in sel]),
-                np.mean([float(r["purity_shortfall_pt_h"]) for r in sel])]
-    after24 = col(SL, "lost_pct_24h")
-    after235 = col(SL, "lost_pct_235h")
-    tm = [r for r in rows(SL) if r["variant"] == "true_model" and r["seed"] in ("3", "10", "14", "16", "17")]
-    e2 = lambda v: col(SB, "replay_min_purity", variant=v)                  # noqa: E731
-    l2 = lambda v: col(SB, "replay_lost_pct", variant=v)                    # noqa: E731
+        """One row of the dose-response table: worst end purity, mean hours below spec, mean shortfall."""
+        sel = dose_offset_rows(o)
+        return [min(numbers(sel, "purity_end")), np.mean(numbers(sel, "hours_below_spec")),
+                np.mean(numbers(sel, "purity_shortfall_pt_h"))]
     out = [(f"C {o:+.1f}", f"{o:+.1f} ".replace("+0.0", "0").replace("0.0 ", "0 ") + "{} % {} {}", c_line(o),
             (pct2, f1, f1)) for o in (-0.4, -0.2, -0.1, 0.1, 0.2)]
-    out += [
+    return out + [
         ("C reagent -0.1", "-0.1 99.88 % 10.3 21.2 +{} % +{} %",
-         [pct_vs_true(-0.1, "base_mol"), pct_vs_true(-0.1, "acid_mol")], whole),
+         [reagent_vs_true(-0.1, "base_mol"), reagent_vs_true(-0.1, "acid_mol")], whole),
         ("C reagent -0.4", "-0.4 99.92 % 10.4 21.8 +{} % +{} %",
-         [pct_vs_true(-0.4, "base_mol"), pct_vs_true(-0.4, "acid_mol")], whole),
-        ("E1 windows", "(24 h: {}-{} %; 235 h: {}-{} %)", [after24.min(), after24.max(), after235.min(), after235.max()], f1),
-        ("E1 true model purity", "The true model holds purity at {}-{} % on the plants that dipped",
-         [min(float(r["purity_min"]) for r in tm), max(float(r["purity_min"]) for r in tm)], pct2),
-        ("E2 known ahead", "switch known in advance {}-{} % {}-{} %",
-         [e2("known_ahead").min(), e2("known_ahead").max(), l2("known_ahead").min(), l2("known_ahead").max()],
-         (pct2, pct2, f2, f2)),
-        ("E2 at the switch", "known only when it happens {}-{} % {}-{} %",
-         [e2("at_the_switch").min(), e2("at_the_switch").max(), l2("at_the_switch").min(), l2("at_the_switch").max()],
-         (pct2, pct2, f2, f2)),
-        ("E2 no rate limits", "no rate limits {}-{} % {}-{} %",
-         [e2("no_rate_limits").min(), e2("no_rate_limits").max(), l2("no_rate_limits").min(), l2("no_rate_limits").max()],
-         (pct2, pct2, f2, f2)),
-        ("E2 slow ramp", "6 h ramp instead of 1 h {}-{} % {}-{} %",
-         [e2("slow_ramp_6h").min(), e2("slow_ramp_6h").max(), l2("slow_ramp_6h").min(), l2("slow_ramp_6h").max()],
-         (pct2, pct2, f2, f2)),
+         [reagent_vs_true(-0.4, "base_mol"), reagent_vs_true(-0.4, "acid_mol")], whole),
     ]
-    return out
+
+
+def bound_claim(variant: str, label: str) -> tuple:
+    """Part E2: one way of knowing the switch, the optimizer's lowest purity and loss ranges."""
+    SB = "switch_bound_ndpr_main.csv"
+    pur, lost = col(SB, "replay_min_purity", variant=variant), col(SB, "replay_lost_pct", variant=variant)
+    return (f"E2 {variant}", label + " {}-{} % {}-{} %", [pur.min(), pur.max(), lost.min(), lost.max()],
+            (pct2, pct2, f2, f2))
+
+
+def switch_claims():
+    """Parts E1 and E2: the feed switch's losses and the optimizer that knows the plant."""
+    SL = "switch_losses_ndpr_main.csv"
+    after24, after235 = col(SL, "lost_pct_24h"), col(SL, "lost_pct_235h")
+    tm = numbers([r for r in matching(SL, variant="true_model") if r["seed"] in ("3", "10", "14", "16", "17")],
+                 "purity_min")
+    return [
+        ("E1 windows", "(24 h: {}-{} %; 235 h: {}-{} %)", [after24.min(), after24.max(), after235.min(), after235.max()], f1),
+        ("E1 true model purity", "The true model holds purity at {}-{} % on the plants that dipped", [min(tm), max(tm)], pct2),
+        bound_claim("known_ahead", "switch known in advance"),
+        bound_claim("at_the_switch", "known only when it happens"),
+        bound_claim("no_rate_limits", "no rate limits"),
+        bound_claim("slow_ramp_6h", "6 h ramp instead of 1 h"),
+    ]
 
 
 def phase10_claims():
+    """FINDINGS phase 10: the six plant-10 runs (notebook 51) and the balance cap on plant 10 (notebook 52)."""
     O = "online_refit_ndpr_main.csv"
     r = {row["variant"]: row for row in rows(O)}
     labels = {"true": "true model", "fit_at_rest": "fit at rest (three numbers)", "online": "online, from the ridge",
@@ -292,20 +345,24 @@ def phase10_claims():
 def notebook24_claims():
     """FINDINGS section 4's dated note of Oct 24: the stored run against the settled rerun (sized plant)."""
     def table(name):
+        """A result table keyed by its case column."""
         return {r["case"]: r for r in rows(name)}
     old, new = table("conditioning_ndpr_plant_sized.csv"), table("conditioning_ndpr_plant_sized_settled.csv")
     near_one = (2, 3, 6, 9, 10, 11, 14, 16, 17, 20)
     others = tuple(s for s in range(1, 21) if s not in near_one)
 
     def vals(t, seeds, col):
+        """A column's numbers for some plants, skipping blanks and non-finite values."""
         v = [float(t[f"seed {s}"][col]) for s in seeds if t[f"seed {s}"].get(col, "") not in ("", "nan")]
         return [x for x in v if np.isfinite(x)]
 
     def span(t, seeds, col):
+        """[lowest, highest] of a column over some plants."""
         v = vals(t, seeds, col)
         return [min(v), max(v)]
 
     def above_one(t):
+        """[plants whose model error at their design point is above 1, plants with a design point]."""
         v = vals(t, range(1, 21), "spec_model_error_flows")
         return [sum(x > 1 for x in v), len(v)]
     settled_six = (3, 6, 9, 10, 17, 20)
@@ -352,6 +409,7 @@ def drift_claims():
     others = [row for k, row in r.items() if k not in ("7", "8")]
 
     def span(c):
+        """[lowest, highest] of a column over some plants."""
         v = [float(x[c]) for x in others]
         return [min(v), max(v)]
     vals = (span("purity_end") + span("recovery_end") + span("recovery_loss_end") + span("stock_change_end_mol")[::-1]
@@ -376,32 +434,32 @@ def rest_check_claims():
     return out
 
 
+def late_settled(traces, plant_rows: list) -> np.ndarray:
+    """Each plant's lowest settled purity from 120 h on, for the plants that have checks that late."""
+    out = []
+    for r in plant_rows:
+        t, p = (traces.get(f"{r['seed']}_{r['variant']}_rest_{k}") for k in ("t", "purity"))
+        if t is not None and (t >= 120).any():
+            out.append(p[t >= 120].min())
+    return np.array(out)
+
+
 def all_fixes_claims():
     """FINDINGS phase 10, all three fixes together from the ridge's model over 600 h (notebook 56)."""
     F = "all_fixes_ndpr_main.csv"
     traces = np.load(RUNS / "all_fixes_ndpr_main.npz")
 
-    def late_settled(v):
-        """Each plant's lowest settled purity from 120 h on (plants with checks that late)."""
-        out = []
-        for r in rows(F):
-            t, p = (traces.get(f"{r['seed']}_{v}_rest_{k}") for k in ("t", "purity"))
-            if r["variant"] == v and t is not None and (t >= 120).any():
-                out.append(p[t >= 120].min())
-        return np.array(out)
     fixed, ridge = "online+balance+rest", "ridge"
-    late_f, late_r = late_settled(fixed), late_settled(ridge)
+    late_f, late_r = late_settled(traces, matching(F, variant=fixed)), late_settled(traces, matching(F, variant=ridge))
     acid = {v: col(F, "acid_extraction_min_mM", variant=v) for v in (fixed, ridge)}
-    hours = {v: [float(r["hours_below_spec"]) for r in rows(F) if r["variant"] == v and not r["stalled_at_h"]]
-             for v in (fixed, ridge)}
+    hours = {v: numbers(matching(F, variant=v, stalled_at_h=""), "hours_below_spec") for v in (fixed, ridge)}
     return [
         ("all fixes settled", "settled purity under spec after 120 h {} of 10 plants 0 (lowest {} %)",
          [int((late_r < SPEC).sum()), late_f.min()], (str, pct2)),
         ("all fixes acid", "extraction acid under 1 mmol/L {} plants (to {}) 0 (lowest {} mmol/L)",
          [int((acid[ridge] < 1).sum()), acid[ridge].min(), acid[fixed].min()], (str, f2, f2)),
         ("all fixes recovery read", "recovery read, highest {} % {} %",
-         [max(float(r["recovery_max_after_24h"]) for r in rows(F) if r["variant"] == v and r["recovery_max_after_24h"])
-          for v in (ridge, fixed)], pct2),
+         [max(numbers(matching(F, variant=v), "recovery_max_after_24h")) for v in (ridge, fixed)], pct2),
         ("all fixes hours", "hours below spec (mean) {} ({} plants) {} ({} plants)",
          [np.mean(hours[ridge]), len(hours[ridge]), np.mean(hours[fixed]), len(hours[fixed])], (f1, str, f1, str)),
     ]
@@ -418,12 +476,159 @@ def margin_claims():
     return out
 
 
+def stock_signal_claims():
+    """FINDINGS phase 10, the NdPr stock as a drift signal (notebook 59)."""
+    S = "stock_signal_ndpr_main.csv"
+
+    def seeds(run, col_):
+        """The plants of one run with something in a column (an alarm, a crossing)."""
+        return [int(r["seed"]) for r in matching(S, run=run) if r[col_] != ""]
+
+    def listed(run, col_):
+        """Those plants as the text writes them."""
+        return ", ".join(str(s) for s in seeds(run, col_))
+    ridge = "56 ridge, no fix"
+    r4 = matching(S, run=ridge, seed=4)[0]
+    cross = numbers(matching(S, run=ridge), "recovery_read_over_100_h")
+    drains = [-v for v in numbers(matching(S, run="55 rest check", seed=7) + matching(S, run="55 rest check", seed=8),
+                                  "stock_change_end_mol")]
+    return [
+        ("stock true model", "true model (notebook 54) plants {} plants {}",
+         [listed("54 true model", "alarm_h"), listed("54 true model", "settled_below_spec_after_start_h")], str),
+        ("stock ridge counts", "it flags {} of the {} plants that drift",
+         [len(seeds(ridge, "alarm_h")), len(seeds(ridge, "settled_below_spec_after_start_h"))], str),
+        ("stock plant 4", "(plant 4: {} h against {} h)",
+         [float(r4["alarm_h"]), float(r4["settled_below_spec_after_start_h"])], whole),
+        ("stock rest check drains", "still drain ({} and {} mol over", drains, whole),
+        ("stock recovery crossing", "it crosses within {} to {} h", [min(cross), max(cross)], (f1, whole)),
+    ]
+
+
+def every_step_claims():
+    """FINDINGS phase 10, the rest-point check every step against every 12 h (notebook 58 against 55)."""
+    B, C = "rest_point_check_ndpr_main", "rest_check_every_step_ndpr_main"
+    tB, tC = np.load(RUNS / f"{B}.npz"), np.load(RUNS / f"{C}.npz")
+
+    def late(traces, s):
+        """A plant's lowest settled purity from 120 h on."""
+        t, p = traces[f"{s}_true+rest_rest_t"], traces[f"{s}_true+rest_rest_purity"]
+        return p[t >= 120].min()
+
+    def below(traces, s):
+        """Hours below spec in one run."""
+        t, p = traces[f"{s}_true+rest_t"], traces[f"{s}_true+rest_purity"]
+        return np.diff(np.concatenate([[0.0], t]))[p < SPEC].sum()
+    secs = {n: {r["seed"]: float(r["seconds"]) for r in rows(f"{n}.csv")} for n in (B, C)}
+    out = [(f"every step plant {s}", f"plant {s} " + "{} {} {} {} {} {}",
+            [late(tB, s), late(tC, s), below(tB, s), below(tC, s), secs[B][s], secs[C][s]],
+            (pct2, pct2, f1, f1, whole, whole)) for s in ("3", "10")]
+    per_check = [(secs[C][s] - secs[B][s]) / 1150 for s in secs[B]]
+    out.append(("every step run time", "{} to {} s per plant against {} to {} s, roughly {} to {} s",
+                [min(secs[C].values()), max(secs[C].values()), min(secs[B].values()), max(secs[B].values()),
+                 min(per_check), max(per_check)], (whole, whole, whole, whole, f1, f1)))
+    return out
+
+
+def loss_recovery_claims():
+    """FINDINGS phase 10, the controller holding recovery counted by losses (notebook 60 against 54)."""
+    A = {r["seed"]: r for r in rows("slow_drift_ndpr_main.csv")}
+    L = {r["seed"]: r for r in rows("loss_recovery_ndpr_main.csv")}
+    others = [s for s in A if s not in ("7", "8")]
+
+    def span(table, c):
+        """[lowest, highest] of a column over some plants."""
+        v = [float(table[s][c]) for s in others]
+        return [min(v), max(v)]
+    drift_rest = [float(L[s]["rest_purity_min"]) for s in ("7", "8")]
+    return [
+        ("loss recovery drifting plants", "still heading for {}-{} % with", [min(drift_rest), max(drift_rest)], pct2),
+        ("loss recovery stock", "goes from {} to {} mol to {} to +{} mol",
+         span(A, "stock_change_end_mol") + span(L, "stock_change_end_mol"), whole),
+        ("loss recovery by losses", "recovery by losses ends at {}-{} % instead of {}-{} %",
+         span(L, "recovery_loss_end") + span(A, "recovery_loss_end"), pct2),
+    ]
+
+
+def band_claims():
+    """FINDINGS phase 10, the acid band (notebook 62 against notebook 53)."""
+    T, B = "ten_plants_v13_ndpr_main.csv", "acid_band_ndpr_main.csv"
+
+    def line(table, v):
+        """One row of the table: the numbers this row quotes, in its order."""
+        acid = col(table, "acid_extraction_min_mM", variant=v)
+        ok = [float(r["hours_below_spec"]) for r in rows(table) if r["variant"] == v and not r["stalled_at_h"]]
+        stalled = sum(1 for r in rows(table) if r["variant"] == v and r["stalled_at_h"])
+        return [int((acid < 1).sum()), acid.min(), stalled, np.mean(ok)]
+    fmt = (str, f2, str, f1)
+    under = [r["seed"] for r in rows(T) if r["variant"] == "true" and float(r["acid_extraction_min_mM"]) < 1]
+    banded = [float(r["acid_extraction_min_mM"]) for r in rows(B) if r["variant"] == "true+band" and r["seed"] in under]
+    return [
+        ("band true", "true model {} of 10 (lowest {}) {} {}", line(T, "true"), fmt),
+        ("band true+band", "true + band {} of 10 (lowest {}) {} {}", line(B, "true+band"), fmt),
+        ("band true+balance", "true + balance {} of 10 (lowest {}) {} {}", line(T, "true+balance"), fmt),
+        ("band ridge+band", "ridge + band {} of 10 (lowest {}) {} {}", line(B, "ridge+band"), fmt),
+        ("band ridge+balance", "ridge + balance {} of 10 (lowest {}) {} {}", line(T, "ridge+balance"), fmt),
+        ("band five plants", "({} to {} mmol/L on the five that went under)", [min(banded), max(banded)], f2),
+    ]
+
+
+def log_impurity_claims():
+    """FINDINGS phase 10, the purity output in log impurity (notebook 61 against 54 and 55)."""
+    A, G = {r["seed"]: r for r in rows("slow_drift_ndpr_main.csv")}, {r["seed"]: r for r in rows("log_impurity_ndpr_main.csv")}
+    traces = {k: np.load(RUNS / f"{n}.npz") for k, n in (("a", "slow_drift_ndpr_main"), ("g", "log_impurity_ndpr_main"),
+                                                         ("b", "rest_point_check_ndpr_main"))}
+    label = {"a": "true", "g": "true+log_impurity", "b": "true+rest"}
+
+    def late(k, s):
+        """A plant's lowest settled purity from 120 h on."""
+        t, p = (traces[k][f"{s}_{label[k]}_rest_{c}"] for c in ("t", "purity"))
+        return p[t >= 120].min()
+    return [(f"log impurity plant {s}", f"plant {s} " + "{} {} {} {} {} {} {}",
+             [late("a", s), late("g", s), late("b", s), float(A[s]["recovery_max_after_24h"]),
+              float(G[s]["recovery_max_after_24h"]), float(A[s]["stock_change_end_mol"]), float(G[s]["stock_change_end_mol"])],
+             (pct2, pct2, pct2, pct2, pct2, whole, whole)) for s in ("7", "8")]
+
+
+def screen_at_best_filter(name: str, case: str, correction: str) -> dict:
+    """One case and correction of the screen at the filter with the lowest median error: {seed: row}."""
+    by_filter = {}
+    for r in matching(name, case=case, correction=correction):
+        by_filter.setdefault(r["filter"], []).append(r)
+    pick = min(by_filter.values(), key=lambda rs: np.median(numbers(rs, "iae")))
+    return {r["seed"]: r for r in pick}
+
+
+def error_size_claim(name: str, size: str, head: str) -> tuple:
+    """One row of the model-accuracy table: both corrections' median error and unbounded runs."""
+    o, i = (matching(name, error_size=size, correction=c)[0] for c in ("output", "input"))
+    tail = " of 19" if size == "0.0" else ""
+    return (f"input screen {size}", f"{head} {{}} {{}}{tail} {{}} {{}}{tail}",
+            [float(o["median_iae"]), o["unbounded"], float(i["median_iae"]), i["unbounded"]], (f2, str, f2, str))
+
+
+def input_screen_claims():
+    """FINDINGS phase 10, the input-correction screen (notebook 63)."""
+    S, Z = "input_correction_screen_ndpr_main.csv", "input_correction_error_sizes_ndpr_main.csv"
+
+    cases = ("target", "input_offset", "output_step")
+    picks = {(c, k): screen_at_best_filter(S, c, k) for c in cases for k in ("output", "input")}
+    wins = [sum(float(picks[(c, "input")][s]["iae"]) < float(picks[(c, "output")][s]["iae"]) for s in picks[(c, "output")])
+            for c in cases]
+    unb = [sum(r["bounded"] == "False" for r in picks[(c, "input")].values()) for c in cases]
+    out = [("input screen wins", "better on {}, {} and {} of 19 plants", wins, str),
+           ("input screen unbounded", "unbounded on {} to {} plants at its best filter", [min(unb), max(unb)], str)]
+    return out + [error_size_claim(Z, size, head) for size, head in
+                  (("0.0", "0 %"), ("0.1", "10 %"), ("0.3", "30 %"), ("0.5", "50 %"))]
+
+
 def v13_claims() -> list:
     """FINDINGS phase 10 (v1.3). Each group is checked when its result table is in this version of the
     project; v1.2 has neither the tables nor phase 10, so there they're left out. Only these groups
     are optional: a missing table anywhere else is an error."""
     out = []
-    for build in (phase10_claims, ten_plant_claims, drift_claims, rest_check_claims, all_fixes_claims, margin_claims):
+    for build in (phase10_claims, ten_plant_claims, drift_claims, rest_check_claims, all_fixes_claims, margin_claims,
+                  stock_signal_claims, every_step_claims, loss_recovery_claims, band_claims, log_impurity_claims,
+                  input_screen_claims):
         try:
             out += build()
         except FileNotFoundError:
@@ -451,14 +656,19 @@ def readme_claims() -> list:
     ]
 
 
-def readme_conditions() -> list:
-    """README statements that round or bound a table's number: (name, sentence, holds)."""
+def base_increase_at(offset: float) -> float:
+    """Part C: mean base used at one model error, % over the true model's on the same plants."""
     C = rows("estimate_matters_C.csv")
     ref = {r["seed"]: float(r["base_mol"]) for r in C if float(r["offset"]) == 0.0}
-    pess = [r for r in C if abs(float(r["offset"]) + 0.1) < 1e-9]
-    base_up = 100 * np.mean([float(r["base_mol"]) - ref[r["seed"]] for r in pess]) / np.mean([ref[r["seed"]] for r in pess])
-    off = [r for r in rows("estimate_matters_D_bias.csv") if r["setting"] == "bias_filter=0.0" and abs(float(r["offset"]) - 0.2) < 1e-9]
+    sel = [r for r in C if abs(float(r["offset"]) - offset) < 1e-9]
+    return 100 * np.mean([float(r["base_mol"]) - ref[r["seed"]] for r in sel]) / np.mean([ref[r["seed"]] for r in sel])
+
+
+def readme_conditions() -> list:
+    """README statements that round or bound a table's number: (name, sentence, holds)."""
+    off = [r for r in matching("estimate_matters_D_bias.csv", setting="bias_filter=0.0") if abs(float(r["offset"]) - 0.2) < 1e-9]
     SB = rows("switch_bound_ndpr_main.csv")
+    base_up = base_increase_at(-0.1)
     weights = {(r["width"], r["depth"]): float(r["weights"]) for r in rows("net_size_ndpr_main.csv")}
     return [
         ("readme reagent per error", "about 10 % more for each 10 % of error", 8 <= base_up <= 12),
@@ -470,7 +680,25 @@ def readme_conditions() -> list:
     ]
 
 
-README_CLAIMS = readme_claims()
+def readme_v13_claims() -> list:
+    """The README's v1.3 numbers (checked when v1.3's tables are here, as v13_claims)."""
+    try:
+        T, D, R = rows("ten_plants_v13_ndpr_main.csv"), rows("slow_drift_ndpr_main.csv"), rows("rest_point_check_ndpr_main.csv")
+    except FileNotFoundError:
+        return []
+    drifted = [r for r in D if float(r["purity_min_after_24h"]) >= 0.999 and float(r["rest_purity_min"]) < SPEC]
+    fixed = [float(r["rest_purity_min"]) for r in R if r["seed"] in {d["seed"] for d in drifted}]
+    return [
+        ("readme v1.3 floor", "acid under its floor on {} of 10 plants",
+         [sum(1 for r in T if r["variant"] == "true" and float(r["acid_extraction_min_mM"]) < 1.0)], str),
+        ("readme v1.3 drift", "On {} of 10 plants the purity read {} % for 600 hours while the plant was heading for about {} %",
+         [len(drifted), min(float(r["purity_min_after_24h"]) for r in drifted),
+          np.mean([float(r["rest_purity_min"]) for r in drifted])], (str, pct2, pct1)),
+        ("readme v1.3 fixed", "those plants settle at {} to {} %", [min(fixed), max(fixed)], pct2),
+    ]
+
+
+README_CLAIMS = readme_claims() + readme_v13_claims()
 README_CONDITIONS = readme_conditions()
 
 

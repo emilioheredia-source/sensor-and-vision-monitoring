@@ -56,6 +56,8 @@ CASES = [f"{s}_{v}_{p}" for s in R.STAGES for v in R.SIZES for p in POLICIES]
 
 
 def evaluate(case: str):
+    """One case (stages, size, targets) on the twenty plants: least-reagent operating point and window,
+    written to its own file (skipped if already there)."""
     out_file = OUT_DIR / f"{case}.csv"
     if out_file.exists():
         return
@@ -94,6 +96,7 @@ def evaluate(case: str):
 
 
 def summary():
+    """The cases side by side, from their files: feasible, reagent, largest organic flow, window."""
     rows = []
     for case in CASES:
         f = OUT_DIR / f"{case}.csv"

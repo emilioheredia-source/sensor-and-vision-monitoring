@@ -84,6 +84,8 @@ def best_pair() -> tuple:
 
 
 def run(seed: int, controller: str, settings: dict) -> dict:
+    """One plant and controller with no upset: end purity and recovery, where it rests on the final handles,
+    the final flows, hours to spec and solver failures."""
     spec = RunSpec(config=CONFIG, plant="perturbed", controller=controller, upset="none", hours=HOURS,
                    run_file={"plant": {"seed": seed, "generator": "ratios"}}, controller_settings=settings)
     s = RunSession(spec)

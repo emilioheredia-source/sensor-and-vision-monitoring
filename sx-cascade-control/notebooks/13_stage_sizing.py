@@ -68,9 +68,11 @@ def outputs_after(circ, x0, u, t_h: float) -> tuple[float, float]:
     return out["purity"], out["recovery"]
 
 
-def nonlinearity(circ, x0, u0, handle: str, move: float) -> dict:
+def nonlinearity(at: tuple, handle: str, move: float) -> dict:
     """Change in purity and recovery after HORIZON_H for a one-move step, and how far a
-    four-move step divided by four is from it (as a fraction of the one-move change)."""
+    four-move step divided by four is from it (as a fraction of the one-move change).
+    at: (circuit, state, inputs), the model's design point."""
+    circ, x0, u0 = at
     p0, r0 = outputs_after(circ, x0, u0, HORIZON_H)
     one = outputs_after(circ, x0, u0.replace(**{handle: float(getattr(u0, handle)) + move}), HORIZON_H)
     four = outputs_after(circ, x0, u0.replace(**{handle: float(getattr(u0, handle)) + 4 * move}), HORIZON_H)
@@ -96,7 +98,7 @@ for label, cfg in PLANTS.items():
     rows.append({"plant": label, "what": "slowest time constant", "value": tau})
     print(f"{label}: slowest time constant {tau:.0f} h", flush=True)
     for handle, move in MOVES.items():
-        r = nonlinearity(circ, x0, u0, handle, move)
+        r = nonlinearity((circ, x0, u0), handle, move)
         print(f"  {handle:20s} 12 h after one move: purity {1e3 * r['d_purity']:+.3f} thousandths, recovery "
               f"{1e2 * r['d_recovery']:+.3f} hundredths; nonlinearity {r['nonlin_purity']:.0%} / "
               f"{r['nonlin_recovery']:.0%}", flush=True)

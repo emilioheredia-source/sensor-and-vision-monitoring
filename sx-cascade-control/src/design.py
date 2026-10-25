@@ -148,6 +148,8 @@ def optimize_operating_point(circuit: Circuit, u0: Inputs, cut: str, spec: float
         r1 = optimize_operating_point(circ, u0, "LaCe", 0.995, free, link=reflux_link(300.0))
         r2 = optimize_operating_point(circ, r1.u, "LaCe", 0.995, free, link=reflux_link(300.0),
                                       x_guess=r1.x, objective="reagent", min_recovery=0.95)
+
+    Why fourteen parameters: the first five say what to design; the rest are keyword options with defaults (limits, weights, solver settings) that most callers leave alone. Grouping them would change every call in the notebooks and tests for no gain in clarity.
     """
     # The decision variables. `handles` are the free inputs, in the order of `free`.
     # `x` is the circuit's full state: aqueous metal, organic metal, aqueous acid

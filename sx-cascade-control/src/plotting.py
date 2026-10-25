@@ -102,6 +102,8 @@ def profile_figure(circuit, x, title: str, path: str | Path | None = None,
 
     Returns:
         The matplotlib figure: three panels sharing the stage axis (0 = raffinate end).
+
+    Why five parameters: what to draw (circuit, state), its title, where to save it, and which elements.
     """
     style()
     p, cmap = circuit.p, circuit.cmap

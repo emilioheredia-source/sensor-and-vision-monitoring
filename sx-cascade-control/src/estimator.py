@@ -95,6 +95,7 @@ class _BudgetedCircuit:
     _OutOfEvaluations past `max_calls`. Everything else is passed through to the circuit."""
 
     def __init__(self, circuit, max_calls: int):
+        """Wrap `circuit`, allowing at most `max_calls` right-hand-side evaluations."""
         self._circuit, self._max_calls, self._calls = circuit, max_calls, 0
 
     def rhs(self, x, u):
@@ -105,6 +106,7 @@ class _BudgetedCircuit:
         return self._circuit.rhs(x, u)
 
     def __getattr__(self, name):
+        """Anything else is the wrapped circuit's own."""
         return getattr(self._circuit, name)
 
 

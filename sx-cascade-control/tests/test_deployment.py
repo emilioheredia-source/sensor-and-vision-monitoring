@@ -10,23 +10,28 @@ class Stub:
     t_step, cut, u_nominal, level_loops = 0.5, "LaCe", None, None
 
     def __init__(self):
+        """Propose 100 L/h of organic, and neither fail nor crash."""
         self.want, self.fail, self.raise_ = 100.0, False, False
         self.last = {}
 
     def handles(self):
+        """The handles in use at the start."""
         return {"Q_org": 100.0, "Q_scrub": 20.0}
 
     def step(self, obs):
+        """Propose the organic flow asked for, or fail or crash as told."""
         if self.raise_:
             raise RuntimeError("solver crashed")
         self.last = {"qp_ok": not self.fail}
         return {"Q_org": self.want, "Q_scrub": 20.0}
 
     def apply(self, handles):
+        """The handles, unchanged."""
         return handles
 
 
 def test_shadow_never_reaches_the_plant_but_journals_the_advice():
+    """In shadow mode the plant keeps its handles, and the journal records what was proposed."""
     stub = Stub()
     guard = DeploymentGuard(stub, mode="shadow")
     stub.want = 110.0
@@ -37,6 +42,7 @@ def test_shadow_never_reaches_the_plant_but_journals_the_advice():
 
 
 def test_closed_loop_moves_at_most_two_percent_an_interval_and_twenty_in_all():
+    """In closed loop a handle moves at most 2 % an interval and 20 % in all."""
     stub = Stub()
     guard = DeploymentGuard(stub, mode="closed")
     stub.want = 150.0
@@ -48,6 +54,7 @@ def test_closed_loop_moves_at_most_two_percent_an_interval_and_twenty_in_all():
 
 
 def test_advisory_applies_only_at_each_review():
+    """In advisory mode the advice reaches the plant only at each review."""
     stub = Stub()
     guard = DeploymentGuard(stub, mode="advisory", limits=Limits(review_every_h=2.0))
     stub.want = 101.0
@@ -56,6 +63,7 @@ def test_advisory_applies_only_at_each_review():
 
 
 def test_watchdog_holds_after_three_failed_solves_and_after_a_crash_until_rearmed():
+    """The watchdog holds the handles after three failed solves or a crash, until re-armed."""
     stub = Stub()
     guard = DeploymentGuard(stub, mode="closed")
     stub.want, stub.fail = 101.0, True
@@ -73,6 +81,7 @@ def test_watchdog_holds_after_three_failed_solves_and_after_a_crash_until_rearme
 
 
 def test_mode_change_is_journalled():
+    """A mode change is journalled, and an unknown mode is refused."""
     guard = DeploymentGuard(Stub(), mode="shadow")
     guard.set_mode("advisory")
     assert guard.mode == "advisory" and guard.journal[-1]["event"] == "mode shadow -> advisory"
@@ -81,6 +90,7 @@ def test_mode_change_is_journalled():
 
 
 def test_a_review_may_move_as_far_as_the_intervals_it_stands_for():
+    """A review may move a handle as far as the intervals since the last one allow."""
     stub = Stub()
     guard = DeploymentGuard(stub, mode="advisory", limits=Limits(review_every_h=2.0))
     stub.want = 150.0

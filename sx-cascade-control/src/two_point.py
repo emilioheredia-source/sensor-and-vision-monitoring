@@ -77,7 +77,10 @@ class TwoPointController:
                  hold_b: tuple, t_step: float, bounds: dict, rate_per_step: dict, net_product: float,
                  closed_loop_h: float = 20.0, swap: bool = False, log_scale: bool = True, level_loops=None):
         """Take the targets at the operating point, measure the gains there, and set each loop's
-        integral gain so it closes in about closed_loop_h. Arguments as in the class docstring."""
+        integral gain so it closes in about closed_loop_h. Arguments as in the class docstring.
+
+        Why fourteen parameters: the model and its operating point, the two loops' targets, and tuning keywords with defaults from the run file; registry._two_point builds it.
+        """
         self.model, self.u_nominal, self.cut = model, u_model, cut
         self.level_loops = level_loops      # the settler loops under it (loop.LevelLoops), or None
         self.log_scale = bool(log_scale)

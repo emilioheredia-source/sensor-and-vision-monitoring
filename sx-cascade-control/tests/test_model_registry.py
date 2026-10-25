@@ -9,11 +9,13 @@ BOUNDS = (-0.8, 0.5)
 
 
 def registry(tmp_path=None):
+    """A registry on a zero model with the test bounds, saved under tmp_path if given."""
     return ModelRegistry({"log_beta_pr_lace": 0.0, "log_beta_nd_pr": 0.0, "log_k": 0.0}, (2.0, 1.5), BOUNDS,
                          path=None if tmp_path is None else tmp_path / "models.json")
 
 
 def test_a_small_clean_fit_passes_every_check_and_the_residual_does_not_decide():
+    """A small clean fit passes every check; a large residual is shown but doesn't decide."""
     r = registry()
     v = r.propose(24.0, [-0.02, 0.01, 0.1], "daily fit", 1.1)
     assert all(c["passed"] for c in v.checks.values())
@@ -23,6 +25,7 @@ def test_a_small_clean_fit_passes_every_check_and_the_residual_does_not_decide()
 
 
 def test_a_fit_on_its_bound_or_jumping_fails_the_checks():
+    """A fit on its bound, or one that jumps far from the model in use, fails the checks."""
     r = registry()
     v = r.propose(24.0, [-0.02, 0.01, 0.5], "daily fit", 1.1)        # k on its upper bound, and a big step
     assert not v.checks["bounds"]["passed"] and not v.checks["step"]["passed"]
@@ -30,6 +33,7 @@ def test_a_fit_on_its_bound_or_jumping_fails_the_checks():
 
 
 def test_only_an_approved_version_goes_in_use_and_rollback_returns_the_last(tmp_path):
+    """Only an approved version can be put in use, and a rollback returns to the one before."""
     r = registry(tmp_path)
     v1 = r.propose(24.0, [-0.02, 0.0, 0.0], "day 1", 1.0)
     with pytest.raises(ValueError):

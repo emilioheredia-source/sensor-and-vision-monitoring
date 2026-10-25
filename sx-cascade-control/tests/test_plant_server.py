@@ -14,6 +14,7 @@ ENDPOINT = "opc.tcp://127.0.0.1:48411/sx-test/"
 
 
 def test_the_same_run_over_opc_ua_and_in_one_process(tmp_path):
+    """A run over OPC UA gives the same moves as the same run in one process."""
     ready = mp.Event()
     server = mp.Process(target=ps.serve, args=(SPEC, ENDPOINT, None, ready))
     server.start()

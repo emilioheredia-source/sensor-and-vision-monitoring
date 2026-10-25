@@ -83,9 +83,11 @@ class _Setpoints:
 
     @property
     def t_step(self):
+        """The control interval, h."""
         return self._t_step
 
     def step(self, obs):
+        """The setpoints written to it, unchanged (the client side does the controlling)."""
         return dict(self.held)
 
     def apply(self, handles):
@@ -104,6 +106,10 @@ class _Capture:
     q_prod = None
 
     def update(self, t, u_cmd, q_feed, readings, q_prod):
+        """Keep the readings and the product flow to publish; the other arguments aren't used here.
+
+        Why five parameters: it serves the same interface as loop.Observer.update.
+        """
         self.readings, self.q_prod = readings, q_prod
 
 
@@ -309,6 +315,7 @@ class ControllerClient:
         return names + [analyser_tag(label) + suffix for label in self.labels for suffix in (".PV", ".T", ".STEP")]
 
     def read(self, name):
+        """The current value of a tag."""
         return self.nodes[name].read_value()
 
     def write(self, name, value, int64=False):

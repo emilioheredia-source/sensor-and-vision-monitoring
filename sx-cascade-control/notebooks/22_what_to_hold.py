@@ -95,6 +95,7 @@ def cases() -> dict:
 
 
 def _file(name: str) -> Path:
+    """The .npz file a sweep is cached in, named after the case."""
     return SWEEP_DIR / (name.replace(" ", "_").replace("%", "pc").replace("+", "plus") + ".npz")
 
 
@@ -105,28 +106,46 @@ def sweep_level(plant, u0, q_org: float, x_from) -> dict:
     pts, states = {}, {}
 
     def solve(q, x0):
+        """The steady state at scrub flow q (strip tied, organic held), warm-started from x0; records purity,
+        recovery and the aqueous profile there, and returns the state."""
         u = u0.replace(Q_org=q_org, Q_scrub=q, Q_strip=NET + q)
-        x = steady_state(plant, u, x0=x0)
-        o = plant.outlets(x, u.numpy())
-        cp = np.atleast_1d(o["c_prod"])
-        c_aq = np.array([np.asarray(v, float).ravel() for v in plant.unpack(plant.observable(x))[0]])
-        tot = cp.sum()
-        pts[round(q, 3)] = (cp[heavy].sum() / tot if tot > 0 else np.nan,
-                            float(o["Q_prod"]) * cp[heavy].sum() / fed, c_aq)
+        x, pts[round(q, 3)] = _point(plant, u, x0, (heavy, fed))
         states[round(q, 3)] = x
         return x
 
     x = x_from
     for q in SCRUB:
         x = solve(q, x)
+    for q in _edge_points(pts):                       # refine where purity first reaches spec
+        solve(q, states[min(states, key=lambda p: abs(p - q))])
+    return _level_arrays(pts, states)
+
+
+def _point(plant, u, x0, heavy_fed: tuple) -> tuple:
+    """The steady state at inputs u, warm-started from x0, and (purity, recovery, aqueous profile) there.
+    heavy_fed: (the product side's mask, the product metal fed in mol/h)."""
+    heavy, fed = heavy_fed
+    x = steady_state(plant, u, x0=x0)
+    o = plant.outlets(x, u.numpy())
+    cp = np.atleast_1d(o["c_prod"])
+    c_aq = np.array([np.asarray(v, float).ravel() for v in plant.unpack(plant.observable(x))[0]])
+    tot = cp.sum()
+    return x, (cp[heavy].sum() / tot if tot > 0 else np.nan, float(o["Q_prod"]) * cp[heavy].sum() / fed, c_aq)
+
+
+def _edge_points(pts: dict) -> list:
+    """The scrub flows to add every 0.5 L/h over 20 L/h from just before purity first reaches spec
+    (none if it never does), skipping ones already solved."""
     qs = sorted(pts)
-    pur = np.array([pts[q][0] for q in qs])
-    above = np.where(np.nan_to_num(pur) >= SPEC)[0]
-    if len(above):                                     # refine where purity first reaches spec
-        q_edge = qs[max(above[0] - 1, 0)]
-        for q in np.arange(q_edge, q_edge + 20.01, 0.5):
-            if round(q, 3) not in pts:
-                solve(q, states[min(states, key=lambda p: abs(p - q))])
+    above = np.where(np.nan_to_num(np.array([pts[q][0] for q in qs])) >= SPEC)[0]
+    if not len(above):
+        return []
+    q_edge = qs[max(above[0] - 1, 0)]
+    return [q for q in np.arange(q_edge, q_edge + 20.01, 0.5) if round(q, 3) not in pts]
+
+
+def _level_arrays(pts: dict, states: dict) -> dict:
+    """One organic flow's sweep as arrays in scrub-flow order, with the first state (the next sweep's start)."""
     qs = np.array(sorted(pts))
     return {"q": qs, "purity": np.array([pts[q][0] for q in qs]), "recovery": np.array([pts[q][1] for q in qs]),
             "c_aq": np.array([pts[q][2] for q in qs]), "x_first": states[min(states)]}
@@ -194,6 +213,7 @@ if only_sweep:
 
 # ---- 2. strategies ----
 def load(name: str) -> list:
+    """A cached sweep: for each organic flow, the scrub flows with their purity, recovery and aqueous profile."""
     d = np.load(_file(name))
     return [{k: d[f"{k}_{f:.2f}"] for k in ("q", "purity", "recovery", "c_aq")} for f in ORGANIC]
 
@@ -213,9 +233,11 @@ def one_handle(level: dict, values: np.ndarray, target: float):
     return None if hit is None else (at(level["purity"], hit), at(level["recovery"], hit))
 
 
-def two_handles(levels: list, va, ta, vb, tb):
+def two_handles(levels: list, held_a: tuple, held_b: tuple):
     """Scrub holds A == ta at every organic flow; the organic flow is then where B == tb.
-    va, vb: functions level -> values along that level's sweep. (purity, recovery) or None."""
+    held_a, held_b: (va, ta) and (vb, tb), va and vb functions level -> values along that level's
+    sweep. (purity, recovery) or None."""
+    (va, ta), (vb, tb) = held_a, held_b
     curve = []                                      # per organic level: (B, purity, recovery) with A held
     for lv in levels:
         hit = crossing(lv["q"], va(lv) - ta, Q_DESIGN)
@@ -236,16 +258,24 @@ def two_handles(levels: list, va, ta, vb, tb):
 def oracle(levels: list):
     """The best recovery with purity >= spec anywhere on the grid; or None."""
     best = None
-    for lv in levels:
-        ok = np.nan_to_num(lv["purity"]) >= SPEC
-        if ok.any():
-            i = int(np.argmax(np.where(ok, lv["recovery"], -1)))
-            if best is None or lv["recovery"][i] > best[1]:
-                best = (lv["purity"][i], lv["recovery"][i])
+    for found in (_best_on_level(lv) for lv in levels):
+        if found is not None and (best is None or found[1] > best[1]):
+            best = found
     return best
 
 
+def _best_on_level(lv: dict):
+    """(purity, recovery) with the best recovery at purity >= spec at one organic flow; or None."""
+    ok = np.nan_to_num(lv["purity"]) >= SPEC
+    if not ok.any():
+        return None
+    i = int(np.argmax(np.where(ok, lv["recovery"], -1)))
+    return lv["purity"][i], lv["recovery"][i]
+
+
 def score(label: str, results: dict) -> dict:
+    """One strategy's results over the cases: how many on spec, the worst purity and recovery, how many with
+    no solution, and which failed."""
     vals = list(results.values())
     ok = {n: r is not None and r[0] >= SPEC and r[1] >= RECOVERY_OK for n, r in results.items()}
     pur = [r[0] for r in vals if r is not None]
@@ -265,7 +295,7 @@ rows.append(score("nothing held (design handles)",
 rows.append(score("one handle: product purity at 99.5 % (perfect analyser)",
                   {n: one_handle(lv[I_DESIGN], lv[I_DESIGN]["purity"], rc0.design_purity) for n, lv in sweeps.items()}))
 rows.append(score("two handles: purity 99.5 % and recovery 95 % (perfect analysers)",
-                  {n: two_handles(lv, lambda l: l["purity"], rc0.design_purity, lambda l: l["recovery"], 0.95)
+                  {n: two_handles(lv, (lambda l: l["purity"], rc0.design_purity), (lambda l: l["recovery"], 0.95))
                    for n, lv in sweeps.items()}))
 rows.append(score("oracle: best the two handles can do", {n: oracle(lv) for n, lv in sweeps.items()}))
 N_REF = len(rows)
@@ -286,8 +316,8 @@ for ka in ("lace_frac", "pr", "pr_ratio"):
             for jb in B_STAGES:
                 rows.append(score(f"two handles: scrub holds {ka} at {ja}, organic holds {kb} at {jb}",
                                   {n: two_handles(sweeps[n],
-                                                  lambda l, k=ka, j=ja: l["cand"][k][:, j], DESIGN[ka][ja],
-                                                  lambda l, k=kb, j=jb: l["cand"][k][:, j], DESIGN[kb][jb])
+                                                  (lambda l, k=ka, j=ja: l["cand"][k][:, j], DESIGN[ka][ja]),
+                                                  (lambda l, k=kb, j=jb: l["cand"][k][:, j], DESIGN[kb][jb]))
                                    for n in sweeps}))
 
 out = HERE / "runs" / f"what_to_hold_{CONFIG}.csv"
@@ -298,11 +328,13 @@ with open(out, "w", newline="") as fh:
 
 
 def show(r):
+    """One strategy's line on the console."""
     print(f"  {r['strategy']:78s} {r['cases_on_spec']:2d}/{r['cases']}  worst purity {100 * r['worst_purity']:6.2f} %"
           f"  worst recovery {100 * r['worst_recovery']:6.2f} %  no solution {r['no_solution']}")
 
 
 def rank(r):
+    """Sort key: most cases on spec first, then the least shortfall in the worst case."""
     return (-r["cases_on_spec"], -np.nan_to_num(min(r["worst_purity"] / SPEC, r["worst_recovery"] / 0.95)))
 
 

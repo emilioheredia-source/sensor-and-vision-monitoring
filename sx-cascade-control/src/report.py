@@ -252,10 +252,12 @@ def _relative_change(values) -> float:
 
 
 def _pct(fraction) -> str:
+    """A fraction as a percentage with two decimals."""
     return f"{100 * float(fraction):.2f} %"
 
 
 def _signed_pct(fraction: float) -> str:
+    """A fraction as a signed percentage with one decimal."""
     return f"{100 * fraction:+.1f} %"
 
 

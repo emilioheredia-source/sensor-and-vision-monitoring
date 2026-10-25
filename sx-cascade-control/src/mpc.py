@@ -97,6 +97,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import NamedTuple
 
+import warnings
+
 import casadi as ca
 import numpy as np
 import scipy.sparse as sp
@@ -107,7 +109,7 @@ from .circuit import Circuit, Inputs
 # run_closed_loop isn't used here: callers import it from this module.
 from .loop import Observation, run_closed_loop      # noqa: F401
 from .metrics import heavy_mask
-from .simulate import implicit_euler
+from .simulate import implicit_euler, steady_state
 
 # Why (two layers, decision 16): a steady-state optimizer above a dynamic MPC is how industrial MPC
 # is laid out (Qin and Badgwell's survey). Judgement call: the optimizer runs once, offline, and is
@@ -191,6 +193,26 @@ class MPCSettings:
                                                 # recovery floors at steady state, as far as the linear model
                                                 # knows (a reflux circuit's inventory settles over days; the
                                                 # horizon alone lets the controller borrow from it)
+    # Why (rest-point check; v1.3, notebook 55): near 100 % purity the long-run view linearized at the
+    # model state is flat, so the steady-state floors can't see a drift the full model shows at rest
+    # (FINDINGS phase 9: plants reading 100 % while heading for 96 %). Every rest_check_every steps the
+    # model is solved to rest on the handles held now, linearized there, and the floors are anchored on
+    # that rest point and its long-run gains until the next check. 0 = off, the default: every run
+    # before v1.3 has it off.
+    rest_check_every: int = 0
+    # Why (recovery counted by losses; notebook 60): recovery as product now over feed now reads above
+    # 100 % while the circuit's stock drains (FINDINGS phase 10, notebook 54), so the controller sees
+    # good news in a plant heading off spec. 1 - raffinate NdPr / NdPr fed counts only what's lost and
+    # can't. False = product over feed, the default: every run before it has it off.
+    recovery_from_losses: bool = False
+    # Why (log impurity; notebook 61): near 100 % purity barely moves when a handle moves, so the linear
+    # view of purity goes flat; in -log10(1 - purity) (the "number of nines") 99.9 against 99.99 % is a
+    # full unit. Logarithms were the biggest single help against this nonlinearity in distillation
+    # composition estimation (Mejdell and Skogestad 1991). With it on, the purity output and its floors
+    # are in nines, and each floor's slack is scaled by the slope there so a thousandth of purity below
+    # a floor costs what it costs now: only the shape away from the floors changes. False = purity as
+    # a fraction, the default: every run before it has it off.
+    log_impurity: bool = False
 
     # ---- weights -------------------------------------------------------------------------------
     # Weights on scaled errors so the QP is well conditioned: purity in thousandths, recovery in
@@ -214,6 +236,13 @@ class MPCSettings:
     # on the raffinate and the stages next to the feed.
     acid_floor: float | None = None             # mol/L, on the aqueous acid of every extraction stage
     w_acid: float = 10.0                        # slack below the acid floor, per (mmol/L)^2
+    # Why (a band above the acid floor; notebook 62, Emilio's suggestion): with one squared penalty
+    # below the floor, the acid costs nothing until it reaches the floor and little just under it, so
+    # the controller walks it down to the floor (FINDINGS phase 10). A second soft floor acid_band
+    # above it, with its own weight, makes the cost start before the floor and grow faster below it.
+    # 0 = off, the default: every run before it has it off.
+    acid_band: float = 0.0                      # mol/L above acid_floor where the band's cost starts
+    w_acid_band: float = 10.0                   # slack below floor + band, per (mmol/L)^2
     # Fixed on Oct 13 (ARCHITECTURE.md, decision 26): until then the offset was divided by 100
     # instead of multiplied, so this term was 1e8 weaker than meant and did almost nothing.
     w_center: float = 0.02                      # pull of each interface toward its setpoint, per cm^2 (so the
@@ -263,6 +292,7 @@ class MPCSettings:
 # limit would hide a real model error. Logging how often each clip is hit would show if they matter.
 PURITY_RANGE, RECOVERY_RANGE = (0.0, 1.0), (0.0, 1.5)
 BIAS_LIMIT_PURITY, BIAS_LIMIT_RECOVERY = 0.2, 0.5
+LOG_PURITY_RANGE, LOG_BIAS_LIMIT_PURITY = (0.0, 9.0), 2.0      # the same, in nines (log_impurity)
 # A linearization with entries this large is numerically useless (chosen): the move-to-output map M
 # above USELESS_GAIN, or the affine part of the prediction Gf above USELESS_AFFINE.
 # Judgement call: the thresholds are orders of magnitude, not measured. Counting re-anchors per
@@ -379,6 +409,7 @@ class CircuitMPC:
         self.circuit, self.u_nominal, self.cut = circuit, u_ss, cut
         self.spec, self.purity_target, self.recovery_target = spec, purity_target, recovery_target
         self.s = settings or MPCSettings()
+        self._set_purity_scale()
         self._read_interface_window()
 
         # The shape of the problem: which inputs move, which outputs are held, the operating
@@ -394,6 +425,30 @@ class CircuitMPC:
         # relinearize_every = 0: one linearization, at the operating point, kept for good.
         if self.s.relinearize_every == 0:
             self._linearize(self.x_ss, self.d_nominal)
+
+    def _set_purity_scale(self):
+        """The purity floors, slack scales, clip range and bias limit in the units of the purity
+        output: a fraction by default; in nines (-log10(1 - purity)) with log_impurity, each floor's
+        slack scaled by the slope there (d nines / d purity = 1 / ((1 - p) ln 10)) so a thousandth of
+        purity below a floor is one unit of slack, as without it."""
+        self._spec_y, self._target_y = self.spec, self.purity_target
+        self._spec_div = self._target_div = 1e3                # slack in thousandths of purity
+        self._purity_range, self._bias_limit_purity = PURITY_RANGE, BIAS_LIMIT_PURITY
+        if not self.s.log_impurity:
+            return
+        self._spec_y, self._target_y = self._as_output(self.spec), self._as_output(self.purity_target)
+        self._spec_div = (1 - self.spec) * np.log(10) * 1e3
+        self._target_div = (1 - self.purity_target) * np.log(10) * 1e3
+        # Judgement call (chosen loose, like the fraction's): 0 to 9 nines; a bias of 2 nines.
+        self._purity_range, self._bias_limit_purity = LOG_PURITY_RANGE, LOG_BIAS_LIMIT_PURITY
+
+    def _as_output(self, purity: float) -> float:
+        """A purity fraction in the controller's purity units."""
+        return -np.log10(max(1 - purity, 1e-9)) if self.s.log_impurity else purity
+
+    def _as_fraction(self, y: float) -> float:
+        """The controller's purity output as a fraction (for the record)."""
+        return 1 - 10 ** (-y) if self.s.log_impurity else y
 
     @property
     def t_step(self) -> float:
@@ -466,6 +521,8 @@ class CircuitMPC:
         uv = ca.SX.sym("u", Inputs.size(n, N))
         out = circuit._out(x=x, u=uv)
         purity, recovery = self._purity_and_recovery(out, uv, u_ss)
+        if self.s.log_impurity:                 # the purity output in nines (setting above)
+            purity = -ca.log10(ca.fmax(1 - purity, 1e-9))
         # The state is [c_aq (N*n), c_org (N*n), acid (N), z (N)]: the interfaces are the last N.
         z = x[2 * N * n + N: 2 * N * n + 2 * N]
         reagent = self._reagent_rate(uv)
@@ -499,9 +556,10 @@ class CircuitMPC:
         # (REPORT.md section 5). Two fixes were tried and each hurt another case. A hold on loss of
         # feed, as a plant does, tested across the whole catalogue, is what would settle it.
         fed_nominal = float(u_ss.Q_feed * np.sum(np.asarray(u_ss.c_feed, float)[heavy]))
-        fed = uv[lay["Q_feed"]] * ca.sum1(uv[lay["c_feed"]][heavy])
-        recovery = out["Q_prod"] * ca.sum1(out["c_prod"][heavy]) / ca.fmax(fed, 0.05 * fed_nominal)
-        return purity, recovery
+        fed = ca.fmax(uv[lay["Q_feed"]] * ca.sum1(uv[lay["c_feed"]][heavy]), 0.05 * fed_nominal)
+        if self.s.recovery_from_losses:         # what isn't lost to the raffinate (setting above)
+            return purity, 1 - out["Q_raff"] * ca.sum1(out["c_raff"][heavy]) / fed
+        return purity, out["Q_prod"] * ca.sum1(out["c_prod"][heavy]) / fed
 
     def _reagent_rate(self, uv: ca.SX) -> ca.SX:
         """Reagent spent, mol/h, as a CasADi expression of the inputs:
@@ -537,6 +595,7 @@ class CircuitMPC:
         self.x_m = self.x_ss.copy()              # the controller's own model state, on the model's manifold
         self.bias = np.zeros(self.ny)            # reported outputs minus the model state's, filtered
         self._lin_point = None
+        self._rest_anchor = None                 # the last rest-point check (rest_check_every), or None
 
     # ---- the fixed part of the QP ------------------------------------------------------------------
     def _build_qp_structure(self):
@@ -589,7 +648,8 @@ class CircuitMPC:
         self._ichk = [k for k in self.s.interface_check_steps if k < self.Hp]
         self._n_ic = len(self._ichk)
         self._n_as = self._n_ic * self.n_acid
-        return 3 * self.Hp + 2 * self._n_ic * self.circuit.N + 2 + self._n_as
+        self._n_ab = self._n_as if self.s.acid_band > 0 else 0     # the band's slacks, after the floor's
+        return 3 * self.Hp + 2 * self._n_ic * self.circuit.N + 2 + self._n_as + self._n_ab
 
     def _variable_bounds(self, n_slack: int) -> tuple:
         """Bounds on w: each move within +-its rate limit, every slack >= 0.
@@ -665,7 +725,8 @@ class CircuitMPC:
         slack_w = np.concatenate([np.full(Hp, s.w_purity_floor), np.full(Hp, s.w_purity),
                                   np.full(Hp, s.w_recovery),
                                   np.full(2 * self._n_ic * self.circuit.N, s.w_interface),
-                                  [s.w_purity, s.w_recovery], np.full(self._n_as, s.w_acid)])
+                                  [s.w_purity, s.w_recovery], np.full(self._n_as, s.w_acid),
+                                  np.full(self._n_ab, s.w_acid_band)])
         return sp.block_diag([sp.csc_matrix(2.0 * H_du), sp.diags(2.0 * slack_w)]).tocsc()
 
     # =================================================================================================
@@ -871,6 +932,8 @@ class CircuitMPC:
         lin_point = self._lin_point
         if not self._usable(lin_point):
             return self._hold_and_reanchor()
+        if self.s.rest_check_every > 0 and self._k % self.s.rest_check_every == 0:
+            self._check_rest_point(d)
         # predict, solve, advance
         Y0 = self._free_response(lin_point, d, u_full)
         self._solve(lin_point, Y0)
@@ -927,16 +990,16 @@ class CircuitMPC:
         # bias is the only integral action. Putting an input-disturbance model into the prediction
         # and comparing on the feed switch would settle it.
         y_rep = self._reported_outputs(obs, u_full)
-        self._seen = (float(y_rep[0]), float(y_rep[1]))
+        self._seen = (self._as_fraction(float(y_rep[0])), float(y_rep[1]))
         if self.s.bias_filter <= 0:
             return
         y_mod = np.array(self._y_fun(self.x_m, u_full)).ravel()
         if not (np.all(np.isfinite(y_rep)) and np.all(np.isfinite(y_mod))):
             return
-        _clip_purity_recovery(y_mod)
+        _clip_purity_recovery(y_mod, self._purity_range)
         a = self.s.bias_filter
         self.bias = (1 - a) * self.bias + a * (y_rep - y_mod)
-        self.bias[0] = float(np.clip(self.bias[0], -BIAS_LIMIT_PURITY, BIAS_LIMIT_PURITY))
+        self.bias[0] = float(np.clip(self.bias[0], -self._bias_limit_purity, self._bias_limit_purity))
         self.bias[1] = float(np.clip(self.bias[1], -BIAS_LIMIT_RECOVERY, BIAS_LIMIT_RECOVERY))
 
     def _reported_outputs(self, obs: Observation, u_full: np.ndarray) -> np.ndarray:
@@ -948,8 +1011,8 @@ class CircuitMPC:
         # on the perturbed plant the estimate alone said 99.98 % when the truth was 99.77 %.
         for i, v in enumerate(obs.product[:2] if obs.product is not None else ()):
             if np.isfinite(v):
-                y_rep[i] = float(v)
-        _clip_purity_recovery(y_rep)
+                y_rep[i] = self._as_output(float(v)) if i == 0 else float(v)
+        _clip_purity_recovery(y_rep, self._purity_range)
         return y_rep
 
     # ---- predict --------------------------------------------------------------------------------
@@ -1126,7 +1189,7 @@ class CircuitMPC:
                 "qp_ok": ok, "qp_status": str(stats.get("return_status", "")),
                 "bias_purity": float(self.bias[0]), "bias_recovery": float(self.bias[1]),
                 "purity_seen": self._seen[0], "recovery_seen": self._seen[1],
-                "purity_plan": float(self.Y_plan[self._pur[-1]]),
+                "purity_plan": self._as_fraction(float(self.Y_plan[self._pur[-1]])),
                 "recovery_plan": float(self.Y_plan[self._rec[-1]])}
 
     def _qp_cost(self, lin_point: dict, Y0: np.ndarray):
@@ -1195,15 +1258,15 @@ class CircuitMPC:
         Hp, Hu, nu, N, n_ic = self.Hp, self.Hu, self.nu, self.circuit.N, self._n_ic
         pur, rec, zrows = self._pur, self._rec, self._zrows
         n_zs, n_iface = 2 * n_ic * N + 2, n_ic * N
-        A_pur = sp.hstack([_csc_full(M[pur]), sp.eye(Hp) / 1e3, _zeros(Hp, 2 * Hp + n_zs)])
-        A_pt = sp.hstack([_csc_full(M[pur]), _zeros(Hp, Hp), sp.eye(Hp) / 1e3, _zeros(Hp, Hp + n_zs)])
+        A_pur = sp.hstack([_csc_full(M[pur]), sp.eye(Hp) / self._spec_div, _zeros(Hp, 2 * Hp + n_zs)])
+        A_pt = sp.hstack([_csc_full(M[pur]), _zeros(Hp, Hp), sp.eye(Hp) / self._target_div, _zeros(Hp, Hp + n_zs)])
         A_rec = sp.hstack([_csc_full(M[rec]), _zeros(Hp, 2 * Hp), sp.eye(Hp) / 1e2, _zeros(Hp, n_zs)])
         A_lo = sp.hstack([_csc_full(M[zrows]), _zeros(n_iface, 3 * Hp), sp.eye(n_iface) / 100.0,
                           _zeros(n_iface, n_iface + 2)])
         A_hi = sp.hstack([_csc_full(M[zrows]), _zeros(n_iface, 3 * Hp + n_iface), -sp.eye(n_iface) / 100.0,
                           _zeros(n_iface, 2)])
         A_u = sp.hstack([_csc_full(self._T[: Hu * nu]), _zeros(Hu * nu, self.nw - self._n_du)])
-        A_ss = sp.hstack([_csc_full(G_end), _zeros(2, 3 * Hp + 2 * n_iface), sp.diags([1e-3, 1e-2])])
+        A_ss = sp.hstack([_csc_full(G_end), _zeros(2, 3 * Hp + 2 * n_iface), sp.diags([1 / self._target_div, 1e-2])])
         blocks = [A_pur, A_pt, A_rec, A_lo, A_hi, A_u, A_ss]
         if self._n_as:
             # acid_k + s_acid / 1000 >= acid_floor (slack in mmol/L); every other block gets zero
@@ -1212,7 +1275,17 @@ class CircuitMPC:
             blocks = [b if b is A_u else sp.hstack([b, _zeros(b.shape[0], n_as)]) for b in blocks]
             blocks.append(sp.hstack([_csc_full(M[self._arows]), _zeros(n_as, 3 * Hp + 2 * n_iface + 2),
                                      sp.eye(n_as) / 1e3]))
+        if self._n_ab:
+            blocks = self._with_band_rows(blocks, M, A_u)
         return sp.vstack(blocks).tocsc()
+
+    def _with_band_rows(self, blocks: list, M: np.ndarray, A_u) -> list:
+        """The acid band (acid_band): acid_k + s_band / 1000 >= acid_floor + acid_band, one slack per
+        acid row, after the floor's slacks; every other block gets zero columns for them."""
+        n_ab, n_before = self._n_ab, self.nw - self._n_du - self._n_ab
+        blocks = [b if b is A_u else sp.hstack([b, _zeros(b.shape[0], n_ab)]) for b in blocks]
+        blocks.append(sp.hstack([_csc_full(M[self._arows]), _zeros(n_ab, n_before), sp.eye(n_ab) / 1e3]))
+        return blocks
 
     def _constraint_bounds(self, Y0: np.ndarray, y_ss: np.ndarray) -> tuple:
         """Lower and upper bounds for the rows of _constraint_matrix, in the same order. Floors
@@ -1223,17 +1296,33 @@ class CircuitMPC:
         # pushed back down; only the reagent term pulls the other way.
         Hp, Hu, n_iface = self.Hp, self.Hu, self._n_ic * self.circuit.N
         pur, rec, zrows = self._pur, self._rec, self._zrows
-        lba = np.concatenate([self.spec - Y0[pur], self.purity_target - Y0[pur],
+        lba = np.concatenate([self._spec_y - Y0[pur], self._target_y - Y0[pur],
                               self.recovery_target - Y0[rec],
                               self.z_lo - Y0[zrows], np.full(n_iface, -np.inf),
                               np.tile(self._lb_u, Hu) - np.tile(self.u_prev, Hu),
-                              [self.purity_target - y_ss[0], self.recovery_target - y_ss[1]]])
+                              [self._target_y - y_ss[0], self.recovery_target - y_ss[1]]])
         uba = np.concatenate([np.full(3 * Hp, np.inf), np.full(n_iface, np.inf), self.z_hi - Y0[zrows],
                               np.tile(self._ub_u, Hu) - np.tile(self.u_prev, Hu), [np.inf, np.inf]])
         if self._n_as:
             lba = np.concatenate([lba, self.s.acid_floor - Y0[self._arows]])
             uba = np.concatenate([uba, np.full(self._n_as, np.inf)])
+        if self._n_ab:
+            lba = np.concatenate([lba, self.s.acid_floor + self.s.acid_band - Y0[self._arows]])
+            uba = np.concatenate([uba, np.full(self._n_ab, np.inf)])
         return lba, uba
+
+    def _check_rest_point(self, d: np.ndarray) -> None:
+        """Solve the model to rest on the handles held now (Newton from the model state, else 800 h
+        of integration first, as study_tools.settle), linearize there and keep the rest point's
+        purity and recovery and their long-run gains as the steady-state floors' anchor. A check that
+        doesn't give finite numbers keeps the last anchor."""
+        u_full = self._u_full(d)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            x_rest = steady_state(self.circuit, u_full, x0=self.x_m, t_settle=800.0)
+        y_rest, G_rest = self._steady_state_gains(self._jacobians(x_rest, d))
+        if np.all(np.isfinite(y_rest[:2])) and np.all(np.isfinite(G_rest[:2])):
+            self._rest_anchor = {"y": y_rest[:2].copy(), "G": G_rest[:2].copy(), "u": self.u_prev.copy()}
 
     def _steady_state_rows(self, lin_point: dict):
         """Purity and recovery at steady state, linear in the moves: y_ss + G_end @ du.
@@ -1247,6 +1336,9 @@ class CircuitMPC:
         if not self.s.steady_state_floors:
             return np.zeros((2, self._n_du)), np.array([np.inf, np.inf])
         T_end = self._T[-self.nu:]                                      # u_end - u_prev = T_end @ du
+        if self._rest_anchor is not None:          # anchored on the last rest-point check
+            R = self._rest_anchor
+            return R["G"] @ T_end, R["y"] + R["G"] @ (self.u_prev - R["u"]) + self.bias[:2]
         y_ss = L["y_ss0"][:2] + L["G_ss"][:2] @ (self.u_prev - L["u_c_h"]) + self.bias[:2]
         return L["G_ss"][:2] @ T_end, y_ss
 
@@ -1297,8 +1389,8 @@ def _succeeded(stats: dict) -> bool:
     return bool(stats.get("success", True))
 
 
-def _clip_purity_recovery(y: np.ndarray):
-    """Clip purity (y[0]) and recovery (y[1]) in place to what they can be (PURITY_RANGE,
-    RECOVERY_RANGE)."""
-    y[0] = float(np.clip(y[0], *PURITY_RANGE))
+def _clip_purity_recovery(y: np.ndarray, purity_range: tuple = PURITY_RANGE):
+    """Clip purity (y[0]) and recovery (y[1]) in place to what they can be (purity_range, as a
+    fraction or in nines with log_impurity; RECOVERY_RANGE)."""
+    y[0] = float(np.clip(y[0], *purity_range))
     y[1] = float(np.clip(y[1], *RECOVERY_RANGE))

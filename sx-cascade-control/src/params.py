@@ -230,6 +230,8 @@ def feed_concentrations(deposit: str, total_RE_g_per_L: float, params: Params,
     Judgement call: the Carester table is a deposit's make-up, not a leach liquor's. Leaching
     doesn't take every element out in the same share, so the real liquor can differ. A leach
     liquor assay would settle it.
+
+    Why five parameters: the deposit and the total, the parameter file, and two optional keywords (elements removed, the feed table).
     """
     x = feed_mole_fractions(deposit, params, removed, feeds)
     mean_M = float(x @ params.M)           # g per mol of mixed metal

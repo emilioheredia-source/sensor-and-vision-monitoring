@@ -38,6 +38,8 @@ def _inputs(cmap, Q_org=300.0, Q_feed=300.0, Q_scrub=100.0, Q_strip=100.0,
     Flows are L/h, concentrations and acid mol/L, the jackleg height m. The
     feed is metal-free unless c_feed is given. The scrub carries acid only
     (no metal), saponification is off, and every jackleg is set the same.
+
+    Why eleven parameters: one keyword per Inputs field, each with a default, so a test overrides only what it needs.
     """
     c = np.zeros(n) if c_feed is None else np.asarray(c_feed, float)
     return Inputs(Q_org, Q_feed, Q_scrub, Q_strip, c, h_feed, np.zeros(n), h_scrub, h_strip,
@@ -55,16 +57,22 @@ def test_map_layout():
     Getting one of these wrong would give a different flowsheet that still runs.
     """
     m = build_map(2, 12, 4)
-    assert m.N == 18 and m.product_stage == 14 and m.organic_recycle
-    # (phase, source name, stage) for every stream that comes from outside the circuit
-    srcs = {(e.phase, e.src, e.dst) for e in m.edges if isinstance(e.src, str)}
-    assert ("aq", "feed", 1) in srcs and ("aq", "scrub", 13) in srcs and ("aq", "strip", 17) in srcs
-    assert ("org", "organic", 0) in srcs
-    # (phase, stage, sink name) for every stream that leaves the circuit
-    sinks = {(e.phase, e.src, e.dst) for e in m.edges if isinstance(e.dst, str)}
-    assert ("aq", 0, "raffinate") in sinks and ("aq", 14, "product") in sinks
+    assert (m.N, m.product_stage) == (18, 14)
+    assert m.organic_recycle
+    assert {("aq", "feed", 1), ("aq", "scrub", 13), ("aq", "strip", 17), ("org", "organic", 0)} <= _streams_in(m)
+    assert {("aq", 0, "raffinate"), ("aq", 14, "product")} <= _streams_out(m)
     # strip aqueous does not flow into the scrub section
-    assert not any(e.phase == "aq" and e.src == 14 and e.dst == 13 for e in m.edges)
+    assert ("aq", 14, 13) not in {(e.phase, e.src, e.dst) for e in m.edges}
+
+
+def _streams_in(m) -> set:
+    """(phase, source name, stage) for every stream that comes from outside the circuit."""
+    return {(e.phase, e.src, e.dst) for e in m.edges if isinstance(e.src, str)}
+
+
+def _streams_out(m) -> set:
+    """(phase, stage, sink name) for every stream that leaves the circuit."""
+    return {(e.phase, e.src, e.dst) for e in m.edges if isinstance(e.dst, str)}
 
 
 def test_aqueous_flow_coefficients():

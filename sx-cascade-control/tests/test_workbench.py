@@ -28,11 +28,14 @@ class FakeView:
     """
 
     def __init__(self):
+        """No calls recorded yet."""
         self.calls = {}
 
     def __getattr__(self, name):
+        """A recorder for any method the view doesn't define."""
         # Called only for methods FakeView doesn't define: return a function that records its arguments.
         def record(*args):
+            """Record one call's arguments."""
             self.calls.setdefault(name, []).append(args)
         return record
 
@@ -241,6 +244,7 @@ def test_an_edit_keeps_the_type_of_the_setting_it_replaces():
 
 
 def test_a_wrong_type_is_refused_with_a_message(presenter):
+    """A setting given the wrong type is refused with a message and not recorded as an edit."""
     p, view = presenter
     p.edit_setting("run_file", ("flows", "feed"), "lots")
     assert "expected a number" in view.calls["show_error"][-1][0]
@@ -286,10 +290,16 @@ def test_a_session_log_is_written_the_last_20_kept_and_shown(tmp_path, monkeypat
         name, text = view.calls["show_log_text"][-1]
         assert name == path.name and "Ready." in text and "expected a number" in text
     finally:
-        for h in list(logging.getLogger().handlers):
-            if isinstance(h, logging.FileHandler) and h.baseFilename == str(path):
-                logging.getLogger().removeHandler(h)
-                h.close()
+        _close_log(path)
+
+
+def _close_log(path) -> None:
+    """Take the session's log file handler off the root logger and close it."""
+    import logging
+    for h in [h for h in logging.getLogger().handlers if isinstance(h, logging.FileHandler)]:
+        if h.baseFilename == str(path):
+            logging.getLogger().removeHandler(h)
+            h.close()
 
 
 def test_the_run_controls_and_progress_stay_in_view_and_the_plots_can_hide_their_points():

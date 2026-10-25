@@ -216,6 +216,8 @@ def implicit_euler(circuit: Circuit, x: np.ndarray, u_vec: np.ndarray, dt: float
 
     Usage:
         x_next = implicit_euler(model, x_now, u.numpy(), 0.5)
+
+    Why six parameters: circuit, state, inputs and time step, plus two solver settings with defaults.
     """
     h = dt / n_sub                                     # sub-step size, hours
     x = np.asarray(x, float).copy()
@@ -233,6 +235,8 @@ def _implicit_euler_substep(circuit: Circuit, x_old: np.ndarray, u_vec: np.ndarr
     After each Newton update, concentrations and acid are clipped at zero. The loop stops early when
     |delta| <= 1e-9 * (1 + |x_new|), or if the Newton matrix is singular (the current x_new is kept).
     Returns x_new, or None if it went non-finite.
+
+    Why five parameters: as implicit_euler, for one sub-step.
     """
     N, n, nx = circuit.N, circuit.n, circuit.nx
     n_conc = 2 * N * n + N                             # concentrations and acid: everything but z
@@ -284,6 +288,8 @@ def simulate(circuit: Circuit, x0: np.ndarray, u_of_t, t_end: float,
 
     Usage:
         traj = simulate(plant, x0, scenario.u_of_t(u), 40.0, dt_out=0.5, breakpoints=scenario.breakpoints)
+
+    Why eight parameters: circuit, start, inputs over time and end time, plus four integrator settings with defaults.
     """
     times = sorted({0.0, float(t_end), *[float(b) for b in breakpoints if 0 < b < t_end]})
     ts, xs, us = [], [], []
@@ -345,6 +351,8 @@ def steady_state(circuit: Circuit, u, x0: np.ndarray | None = None,
         tol: tolerance handed to the root solver.
     Returns:
         the steady state.
+
+    Why five parameters: circuit, inputs and a warm start, plus two solver settings with defaults.
     """
     uv = _u_vec(u)
     if x0 is not None:

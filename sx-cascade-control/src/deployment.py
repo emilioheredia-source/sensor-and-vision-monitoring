@@ -75,20 +75,25 @@ class DeploymentGuard:
     # the loop.Controller interface, passed through to the wrapped controller
     @property
     def u_nominal(self):
+        """The wrapped controller's inputs at the operating point."""
         return self.inner.u_nominal
 
     @property
     def cut(self):
+        """The wrapped controller's cut."""
         return self.inner.cut
 
     @property
     def t_step(self) -> float:
+        """The wrapped controller's control interval, h."""
         return self.inner.t_step
 
     def apply(self, handles: dict):
+        """The plant's inputs for these handles, as the wrapped controller builds them."""
         return self.inner.apply(handles)
 
     def handles(self) -> dict:
+        """A copy of the handles last applied to the plant."""
         return _copy(self.applied)
 
     # ---- changing what the guard lets through ---------------------------------------------------

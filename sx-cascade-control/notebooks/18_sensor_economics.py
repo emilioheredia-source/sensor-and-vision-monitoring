@@ -153,7 +153,7 @@ def make(kind: str, stage=None) -> Instrument:
         C = np.zeros((len(comps), NX + ND))
         for r, i in enumerate(comps):
             C[r, NX + feed_cols[i]] = 1.0
-        return _finish(f"{kind} feed", kind, spec, C, c_feed[comps])
+        return _finish(f"{kind} feed", kind, C, c_feed[comps])
     if kind == "density":
         s = Sensor("density_aq", stage=stage)
         value = np.atleast_1d(sensors.true_value(s, x0, u0.numpy()))
@@ -164,27 +164,37 @@ def make(kind: str, stage=None) -> Instrument:
         s = Sensor("composition_aq", stage=stage, components=[names[i] for i in comps])
         value = c_aq[stage, comps]
     C = np.hstack([sensors.rows(s), np.zeros((len(value), ND))])
-    return _finish(f"{kind} {stage}", kind, spec, C, value)
+    return _finish(f"{kind} {stage}", kind, C, value)
 
 
-def _finish(name: str, kind: str, spec: dict, C: np.ndarray, value: np.ndarray) -> Instrument:
-    """Noise and calibration sources from the catalogue's numbers and the readings' values."""
+def _finish(name: str, kind: str, C: np.ndarray, value: np.ndarray) -> Instrument:
+    """Noise and calibration sources from the catalogue's numbers for `kind` and the readings' values."""
+    spec = DRAFT_CATALOGUE[kind]
     value = np.abs(np.asarray(value, float))
     m = len(value)
     sd = np.full(m, spec["noise"]) if spec.get("abs") else np.maximum(spec["noise"] * value, 1e-4)
-    sources = []
-    if spec["gain"] > 0:
-        if spec["shared_gain"]:                               # one spectrum: one gain for every band
-            sources.append((f"{name} gain", spec["gain"] * value))
-        else:                                                 # one calibration per reading
-            sources += [(f"{name} gain {r}", spec["gain"] * value[r] * np.eye(m)[r]) for r in range(m)]
-    if spec["offset"] > 0:
-        if kind == "uvvis":                                   # part common to every unit, part its own
-            sources.append(("uvvis offset, all units", np.sqrt(UVVIS_SHARED_OFFSET) * spec["offset"] * np.ones(m)))
-            sources.append((f"{name} offset", np.sqrt(1 - UVVIS_SHARED_OFFSET) * spec["offset"] * np.ones(m)))
-        else:
-            sources += [(f"{name} offset {r}", spec["offset"] * np.eye(m)[r]) for r in range(m)]
+    sources = _gain_sources(name, spec, value) + _offset_sources(name, kind, spec, m)
     return Instrument(name, kind, spec["cost"], C, sd, spec["interval"], spec["delay"], sources)
+
+
+def _gain_sources(name: str, spec: dict, value: np.ndarray) -> list:
+    """The calibration gain sources: one per spectrum, or one per reading."""
+    m = len(value)
+    if spec["gain"] <= 0:
+        return []
+    if spec["shared_gain"]:                                   # one spectrum: one gain for every band
+        return [(f"{name} gain", spec["gain"] * value)]
+    return [(f"{name} gain {r}", spec["gain"] * value[r] * np.eye(m)[r]) for r in range(m)]   # one calibration per reading
+
+
+def _offset_sources(name: str, kind: str, spec: dict, m: int) -> list:
+    """The calibration offset sources: a UV-Vis unit's part common to every unit and its own; else one per reading."""
+    if spec["offset"] <= 0:
+        return []
+    if kind == "uvvis":                                       # part common to every unit, part its own
+        return [("uvvis offset, all units", np.sqrt(UVVIS_SHARED_OFFSET) * spec["offset"] * np.ones(m)),
+                (f"{name} offset", np.sqrt(1 - UVVIS_SHARED_OFFSET) * spec["offset"] * np.ones(m))]
+    return [(f"{name} offset {r}", spec["offset"] * np.eye(m)[r]) for r in range(m)]
 
 
 # ---- 3. the score of a set of instruments ----
@@ -211,36 +221,68 @@ def _system(instruments: list, calibration: bool):
     times the source. A late instrument of m readings and d steps adds m x d states: the first copy
     takes C_i x each step, each next copy the one before, and the reading is the last copy."""
     n0 = NX + ND
-    keys = list(dict.fromkeys(k for i in instruments for k, _ in i.sources))
+    keys = _source_keys(instruments)
     ns = len(keys)
-    n_delay = sum(len(i.sd) * int(round(i.delay / T_STEP)) for i in instruments)
+    A, Q = _drift_blocks(n0, ns, _delay_states(instruments))
+    rows, at = [], n0 + ns
+    for inst in instruments:
+        row, at = _reading_rows(A, inst, at, n0)
+        if calibration:
+            _fill_calibration(row, inst.sources, keys, n0)
+        rows.append(row)
+    C = np.vstack(rows)
+    R = np.diag(np.maximum(_reading_sd(instruments), 1e-6) ** 2)
+    G = np.concatenate([G_AUG, np.zeros(A.shape[0] - n0)])
+    return A, Q, C, R, G
+
+
+def _source_keys(instruments: list) -> list:
+    """Every calibration source of the set, once, in the order first met."""
+    return list(dict.fromkeys(k for i in instruments for k, _ in i.sources))
+
+
+def _delay_states(instruments: list) -> int:
+    """How many delay copies the late instruments need (m readings x d steps each)."""
+    return sum(len(i.sd) * int(round(i.delay / T_STEP)) for i in instruments)
+
+
+def _reading_sd(instruments: list) -> np.ndarray:
+    """Noise per reading, counted for how often each instrument reads (R x interval / step)."""
+    return np.concatenate([i.sd * np.sqrt(max(i.interval, 1e-3) / T_STEP) for i in instruments])
+
+
+def _drift_blocks(n0: int, ns: int, n_delay: int) -> tuple:
+    """A and Q with the plant's block, the drifting calibration sources (A = a, Q = 1 - a^2) and the
+    delay states (a hair of noise keeps the Riccati equation well posed); delay chains go in later."""
     nt = n0 + ns + n_delay
     A, Q = np.zeros((nt, nt)), np.zeros((nt, nt))
     A[:n0, :n0], Q[:n0, :n0] = A_PLANT, Q_PLANT
     A[n0:n0 + ns, n0:n0 + ns] = A_DRIFT * np.eye(ns)
     Q[n0:n0 + ns, n0:n0 + ns] = (1 - A_DRIFT ** 2) * np.eye(ns)
     Q[n0 + ns:, n0 + ns:] = 1e-14 * np.eye(n_delay)            # a hair of noise keeps the equation well posed
-    rows, at = [], n0 + ns
-    for inst in instruments:
-        m, d = len(inst.sd), int(round(inst.delay / T_STEP))
-        row = np.zeros((m, nt))
-        if d == 0:
-            row[:, :n0] = inst.C
-        else:
-            A[at:at + m, :n0] = inst.C                         # first copy: the reading as of now
-            for k in range(1, d):                              # each next copy: the one before, a step later
-                A[at + k * m:at + (k + 1) * m, at + (k - 1) * m:at + k * m] = np.eye(m)
-            row[:, at + (d - 1) * m:at + d * m] = np.eye(m)    # the reading: the last copy
-            at += m * d
-        if calibration:
-            for key, vec in inst.sources:
-                row[:, n0 + keys.index(key)] = vec
-        rows.append(row)
-    C = np.vstack(rows)
-    sd = np.concatenate([i.sd * np.sqrt(max(i.interval, 1e-3) / T_STEP) for i in instruments])
-    R = np.diag(np.maximum(sd, 1e-6) ** 2)
-    G = np.concatenate([G_AUG, np.zeros(ns + n_delay)])
-    return A, Q, C, R, G
+    return A, Q
+
+
+def _fill_calibration(row: np.ndarray, sources: list, keys: list, n0: int) -> None:
+    """Each calibration source's vector into its column of the instrument's rows (in place)."""
+    for key, vec in sources:
+        row[:, n0 + keys.index(key)] = vec
+
+
+def _reading_rows(A: np.ndarray, inst: Instrument, at: int, n0: int) -> tuple:
+    """One instrument's rows of C (calibration columns still empty), and the next free delay state.
+    A prompt instrument reads the state; a late one gets a chain of delay copies written into A (the
+    first copy takes C_i x each step, each next copy the one before) and reads the last copy."""
+    m, d = len(inst.sd), int(round(inst.delay / T_STEP))
+    row = np.zeros((m, A.shape[0]))
+    if d == 0:
+        row[:, :n0] = inst.C
+        return row, at
+    A[at:at + m, :n0] = inst.C                             # first copy: the reading as of now
+    for k in range(1, d):                                  # each next copy: the one before, a step later
+        A[at + k * m:at + (k + 1) * m, at + (k - 1) * m:at + k * m] = np.eye(m)
+    row[:, at + (d - 1) * m:at + d * m] = np.eye(m)        # the reading: the last copy
+    return row, at + m * d
 
 
 # ---- 4. the candidates and the greedy search ----
@@ -260,20 +302,25 @@ def greedy(h: float, max_added: int = 8) -> list:
     current = score(chosen, (h,))[0]
     path = [([LAB.name], LAB.cost, current)]
     while len(chosen) <= max_added:
-        best, best_gain, best_score = None, -np.inf, None
-        for c in candidates:
-            if c in chosen:
-                continue
-            s = score(chosen + [c], (h,))[0]
-            gain = np.log(current / s) / c.cost if np.isfinite(s) else -np.inf
-            if gain > best_gain:
-                best, best_gain, best_score = c, gain, s
+        best, best_score = _best_addition(chosen, current, h)
         if best is None or best_score >= current * 0.99:
             break
         chosen.append(best)
         current = best_score
         path.append(([c.name for c in chosen], sum(c.cost for c in chosen), current))
     return path
+
+
+def _best_addition(chosen: list, current: float, h: float) -> tuple:
+    """The candidate that cuts the score at horizon h most per unit cost, and the score with it:
+    (instrument, score), or (None, None) if none is finite."""
+    best, best_gain, best_score = None, -np.inf, None
+    for c in (c for c in candidates if c not in chosen):
+        s = score(chosen + [c], (h,))[0]
+        gain = np.log(current / s) / c.cost if np.isfinite(s) else -np.inf
+        if gain > best_gain:
+            best, best_gain, best_score = c, gain, s
+    return best, best_score
 
 
 paths = {}

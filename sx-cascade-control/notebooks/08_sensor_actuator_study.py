@@ -147,9 +147,10 @@ def record(r):
         w.writerows([{k: rr.get(k, "") for k in FIELDS} for rr in rows])
 
 
-def report(sc_name, study, set_name, dt, r):
-    """Print one line for a finished run: what was run, how long it took (dt, s), and its scores r."""
-    print(f"{sc_name:15s} {study:9s} {set_name:28s} {dt:4.0f}s  lost {r['lost_excess_mol']:7.0f}  "
+def report(r, dt):
+    """Print one line for a finished run r (its scenario, study and set, then its scores) and how long
+    it took (dt, s)."""
+    print(f"{r['scenario']:15s} {r['study']:9s} {r['set']:28s} {dt:4.0f}s  lost {r['lost_excess_mol']:7.0f}  "
           f"iface {r['interface_excursion_m_h']:.3f}  reagent {r['reagent_mol']:.0f}  purity min {r['purity_min']:.4f}  "
           f"qp fails {int(r.get('qp_failures', 0))}", flush=True)
 
@@ -165,7 +166,7 @@ for sc_name, make in SCENARIOS.items():
         r = {"study": "open loop", "set": "-", "scenario": sc_name, "qp_failures": 0}
         r.update(score(simulate(plant, x0, sc.u_of_t(u), T_END, dt_out=T_STEP, breakpoints=sc.breakpoints)))
         record(r)
-        report(sc_name, "open loop", "-", time.time() - t0, r)
+        report(r, time.time() - t0)
 
     # the sensor study: with a sensor set, the controller sees readings through an estimator
     # (sensor noise drawn with seed 1)
@@ -184,7 +185,7 @@ for sc_name, make in SCENARIOS.items():
         r.update(score(traj))
         r["qp_failures"] = sum(not h["qp_ok"] for h in log)
         record(r)
-        report(sc_name, "sensors", set_name, time.time() - t0, r)
+        report(r, time.time() - t0)
 
     # the handle study: the same controller, allowed fewer handles
     for set_name, settings in ACTUATOR_SETS.items():
@@ -197,7 +198,7 @@ for sc_name, make in SCENARIOS.items():
         r.update(score(traj))
         r["qp_failures"] = sum(not h["qp_ok"] for h in log)
         record(r)
-        report(sc_name, "actuators", set_name, time.time() - t0, r)
+        report(r, time.time() - t0)
 
 # ---- 6. figures: one per study; product metal lost beyond nominal and the lowest purity, side by side ----
 style()

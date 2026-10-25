@@ -66,6 +66,7 @@ def _log_uncaught_exceptions():
     """Write an exception that nothing caught, on the main thread or any other, to the log with
     its traceback. Python's default only prints it to the console."""
     def uncaught(kind, value, tb):
+        """Log an uncaught exception with its traceback."""
         log.critical("uncaught exception", exc_info=(kind, value, tb))
     sys.excepthook = uncaught
     threading.excepthook = lambda a: log.critical("uncaught exception in a thread",

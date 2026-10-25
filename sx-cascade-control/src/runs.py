@@ -422,6 +422,8 @@ def _result_from(spec, op: OperatingPoint, records: list, t_step: float, upset_t
         records: one loop.StepRecord per interval run.
         t_step: the control interval, h.
         upset_title: the upset's title, for the meta.
+
+    Why five parameters: they're the parts of a finished run that RunResult packs.
     """
     traj = _trajectory_from(op, records)
     series = _series_from(op, traj)

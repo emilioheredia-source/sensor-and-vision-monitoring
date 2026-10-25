@@ -37,6 +37,8 @@ SUMMARY = HERE / "runs" / "opcua_ndpr_main.txt"
 
 
 def main():
+    """The run over OPC UA with the historian, then the same run in one process; compare the handles and
+    the final state, and write the summary."""
     ready = mp.Event()
     server = mp.Process(target=ps.serve, args=(SPEC, ENDPOINT, str(PLANT_NPZ), ready))
     server.start()

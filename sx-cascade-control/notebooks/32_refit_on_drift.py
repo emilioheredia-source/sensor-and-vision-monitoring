@@ -76,6 +76,7 @@ theta = np.zeros(3)
 
 
 def true_beta(t):
+    """The drifting plant's Pr/(La+Ce) separation factor at time t."""
     lm = plant.log_multipliers(t) - plant.log_multipliers(0.0)
     return plant.p.K[i_pr] / plant.p.K[i_la] * np.exp(lm[i_pr] - lm[i_la])
 
@@ -90,6 +91,7 @@ def refit(x_plant, u_now):
     state = {"x": plant.observable(x_plant)}
 
     def residuals(th):
+        """Noise-scaled reading errors of the model with these numbers (warm-started steady state)."""
         model, _, _ = model_with(rc, th)
         x = steady_state(model, u_model, x0=state["x"])
         state["x"] = x

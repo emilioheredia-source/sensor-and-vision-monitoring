@@ -62,6 +62,28 @@ removed upstream, the 85 % organic loading cap.
 
 ## Log
 
+### Sat Oct 24 and Sun Oct 25 (v1.3)
+
+**The controller's two blind spots, and a fix for each (notebooks 51 to 57; FINDINGS phase 10).** Plant 10's
+over-saponification was the acid exponent: the plant's is 3.3, the model's 3.0, and the ridge estimate the
+controller started from can't see it. Refitting the three numbers every 2 hours on a 2-hour window (notebook 51)
+had them right from the first refit. Capping the saponification by the acid balance (notebook 52) stops the
+runaway with any model. On ten plants (notebook 53) the refit removes the wrong model's stall, but even the true
+model runs the extraction acid under the floor on 5 of 10; the cap keeps all ten off it at no cost in time below
+spec. Over 600 hours (notebook 54) two plants read 99.99 % while heading for about 94.5 %, recovery reading up to
+104 % as the stock drains; a rest-point check in the MPC (notebook 55, ARCHITECTURE decision 42) holds them at
+99.97-99.99 %. All three together from the ridge's model over 600 hours (notebook 56): no stall, no drift, no
+acid under the floor. Over that long the cap holds the acid at the floor itself on three plants; aiming 3 mmol/L
+above it (notebook 57) clears two of them, not the third, where a stage inside the extraction section runs below
+the outlet. Each change was tested on its own against the same baseline. Then Emilio's five questions, one test
+each (notebooks 58 to 62): a check every step is no better than every 12 hours; the NdPr stock flags the
+drifting plants with no model but also fires when the stock only shifts; holding recovery counted by losses
+is no better; a penalty that starts before the acid floor keeps a right model off it, not a wrong one; log
+impurity halves the drift but doesn't stop it. Three new MPC settings, all off by default (ARCHITECTURE
+decision 43). Correcting the model at its inputs was screened on notebook 24's gains first (notebook 63):
+better only with an accurate model, unstable on most plants with the real one; not built. LITERATURE.md
+added; v1.3 tagged.
+
 ### Fri Oct 23 and Sat Oct 24 (v1.2)
 
 **Fair test, Tests 3 to 6 (notebooks 43 to 45; FINDINGS phase 8).** Test 3: the MAP fit of both separation

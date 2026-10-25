@@ -9,6 +9,7 @@ from src.runs import RunSpec, execute
 
 
 def test_run_files_and_the_parameter_file_as_text():
+    """Run files and the parameter file are listed and read as text."""
     assert "ndpr_main" in store.run_file_names()
     path, text = store.editable_file("run_file", "ndpr_main")
     assert path.endswith("ndpr_main.toml") and 'name = "ndpr_main"' in text
@@ -17,6 +18,7 @@ def test_run_files_and_the_parameter_file_as_text():
 
 
 def test_where_a_setting_is_written_and_who_reads_it():
+    """A setting's file and line are found, whether it can be edited there, and the code that reads it."""
     spec = RunSpec(config="ndpr_main")
     path, text, line, editable = store.setting_in_file(spec, "run_file", ("flows", "feed"))
     assert editable and text.splitlines()[line - 1].startswith("feed")
@@ -41,6 +43,7 @@ def test_a_run_saved_listed_read_back_and_its_report(tmp_path, monkeypatch):
 
 
 def test_session_logs_newest_first(tmp_path, monkeypatch):
+    """Session logs are listed newest first and read back as text."""
     monkeypatch.setattr(store, "LOG_DIR", tmp_path)
     for stamp in ("20261018_100000", "20261018_120000"):
         (tmp_path / f"workbench_{stamp}.log").write_text(f"line from {stamp}\n", encoding="utf-8")

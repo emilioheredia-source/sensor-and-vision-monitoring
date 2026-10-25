@@ -41,7 +41,7 @@ import numpy as np
 from scipy.optimize import least_squares
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from src.circuit import Circuit                                          # noqa: E402
+from src.circuit import Circuit, Inputs                                  # noqa: E402
 from src.commission import commission                                   # noqa: E402
 from src.config import build_circuit, load_config, nominal_inputs       # noqa: E402
 from src.loop import run_closed_loop                                    # noqa: E402
@@ -79,6 +79,7 @@ def readings(circ, x, u, names):
 
 
 def noise_sd(y):
+    """Each reading's noise standard deviation: a share of the reading (XRF, then UV-Vis), with a floor."""
     n_xrf = 6
     return np.concatenate([np.maximum(XRF_SD * np.abs(y[:n_xrf]), 1e-4), np.maximum(UV_SD * np.abs(y[n_xrf:]), 1e-5)])
 
@@ -114,61 +115,103 @@ def model_with(rc, theta):
     return Circuit(base.cmap, p2, model=base.model, scrub_reflux=base.scrub_reflux), beta_pl, beta_np
 
 
-def run(seed):
-    t0 = time.time()
+def plant_at_rest(seed):
+    """The perturbed plant for one seed, commissioned at rest on the design flows:
+    (run file, plant, its stage-rate factors, state at rest, design inputs)."""
     rc = load_config(CONFIG, overrides={"plant": {"mismatch": "perturbed", "seed": seed, "generator": "ratios"}})
     plant, plant_k = PLANTS["perturbed"].build(rc)
     x_rest, u_design = commission(plant, nominal_inputs(rc, plant).replace(k_factor=plant_k))
-    names = list(plant.p.names)
+    return rc, plant, plant_k, x_rest, u_design
+
+
+def measured(plant, x_rest, u_design, seed):
+    """What the chosen instruments report at rest, with this plant's noise draw: (the readings the fit
+    sees, their noise standard deviations)."""
     rng = np.random.default_rng(seed + 5000)
-    y_true = readings(plant, x_rest, u_design, names)
+    y_true = readings(plant, x_rest, u_design, list(plant.p.names))
     sd_full = noise_sd(y_true)
     y_read = y_true + rng.normal(0.0, sd_full)
     y_read[6:] *= UV_GAIN_ERROR if SENSORS == "uv_relative" else 1.0
     y_meas = observe(y_read)
     # the noise of what the fit sees: each reading's own, and for ratios both readings' (in quadrature)
     if SENSORS == "uv_relative":
-        sd = np.abs(y_meas) * UV_SD * np.sqrt(2)
-    else:
-        sd = observe(sd_full)
-    u_model = u_design.replace(k_factor=np.ones(plant.N))
+        return y_meas, np.abs(y_meas) * UV_SD * np.sqrt(2)
+    return y_meas, observe(sd_full)
+
+
+def fit_numbers(rc, plant, x_rest, data):
+    """The three numbers fitted by least squares to the readings. data: (model inputs, readings, their
+    noise). Returns (the fit, the number of steady-state solves)."""
+    u_model, y_meas, sd = data
+    names = list(plant.p.names)
     state = {"x": plant.observable(x_rest), "evals": 0}
 
     def residuals(theta):
+        """Noise-scaled reading errors of the model with these numbers (warm-started steady state)."""
         model, _, _ = model_with(rc, theta)
         x = steady_state(model, u_model, x0=state["x"])
         state["x"], state["evals"] = x, state["evals"] + 1
         return (observe(readings(model, x, u_model, names)) - y_meas) / sd
 
     fit = least_squares(residuals, np.zeros(3), bounds=(-0.5, 0.5), diff_step=0.02, max_nfev=60)
-    model, beta_pl, beta_np = model_with(rc, fit.x)
-    x_model = steady_state(model, u_model, x0=plant.observable(x_rest))
+    return fit, state["evals"]
+
+
+def fitted_controller(rc, model, x_model, u_model):
+    """The MPC on the fitted model: over level loops on the main case, with the acidity floor otherwise."""
     if MAIN:
-        ctl = mpc_over_level_loops(rc, model, x_model, u_model)
-    else:
-        settings = controller_settings(rc, acid_floor=1e-3)
-        ctl = CircuitMPC(model, x_model, u_model, rc.cut, rc.targets()[0], rc.design_purity, rc.targets()[1], settings)
-    traj, log = run_closed_loop(plant, x_rest, ctl, None, HOURS, plant_k_factor=plant_k)
+        return mpc_over_level_loops(rc, model, x_model, u_model)
+    settings = controller_settings(rc, acid_floor=1e-3)
+    return CircuitMPC(model, x_model, u_model, rc.cut, rc.targets()[0], rc.design_purity, rc.targets()[1], settings)
+
+
+def purity_recovery_of(plant, rc, u_design):
+    """A function (state, inputs) -> the plant's product purity and recovery (fractions)."""
     heavy = np.array(heavy_mask(plant.p, rc.cut))
     fed = float(u_design.Q_feed) * np.asarray(u_design.c_feed, float)[heavy].sum()
 
     def pur_rec(x, uv):
+        """The plant's product purity and recovery (fractions) at state x, inputs uv."""
         o = plant.outlets(x, uv)
         cp = np.atleast_1d(o["c_prod"])
         return product_purity(cp, plant.p, rc.cut), float(o["Q_prod"]) * cp[heavy].sum() / fed
+    return pur_rec
 
-    end = pur_rec(traj.x[-1], traj.u[-1])
-    rest = pur_rec(steady_state(plant, traj.u[-1], x0=traj.x[-1]), traj.u[-1])
+
+def result_row(seed, plant, fitted, outcome):
+    """The plant's row. fitted: (fit, solves, Pr/(La+Ce) fitted, Nd/Pr fitted); outcome: (trajectory,
+    log, end purity and recovery, at-rest purity and recovery)."""
+    fit, evals, beta_pl, beta_np = fitted
+    traj, log, end, rest = outcome
+    names = list(plant.p.names)
     i_la, i_pr, i_nd = names.index("LaCe"), names.index("Pr"), names.index("Nd")
-    from src.circuit import Inputs
     lay = Inputs.layout(plant.n, plant.N)
     return {"seed": seed, "group": "main" if MAIN else ("hard" if seed in HARD else "easy"),
             "beta_pr_lace_true": plant.p.K[i_pr] / plant.p.K[i_la], "beta_pr_lace_fit": beta_pl,
             "beta_nd_pr_true": plant.p.K[i_nd] / plant.p.K[i_pr], "beta_nd_pr_fit": beta_np,
-            "k_factor_fit": float(np.exp(fit.x[2])), "fit_cost": float(fit.cost), "fit_evals": state["evals"],
+            "k_factor_fit": float(np.exp(fit.x[2])), "fit_cost": float(fit.cost), "fit_evals": evals,
             "purity_end": end[0], "recovery_end": end[1], "rest_purity": rest[0], "rest_recovery": rest[1],
             "Q_org_end": float(traj.u[-1][lay["Q_org"].start]),
-            "solver_failures": int(sum(1 for r in log if r.get("qp_ok") is False)), "seconds": round(time.time() - t0)}
+            "solver_failures": int(sum(1 for r in log if r.get("qp_ok") is False))}
+
+
+def run(seed):
+    """One plant: fit the model to its noisy readings at rest, run the MPC on the fitted model, and return
+    the fit, the end and at-rest purity and recovery, and the organic flow at the end."""
+    t0 = time.time()
+    rc, plant, plant_k, x_rest, u_design = plant_at_rest(seed)
+    y_meas, sd = measured(plant, x_rest, u_design, seed)
+    u_model = u_design.replace(k_factor=np.ones(plant.N))
+    fit, evals = fit_numbers(rc, plant, x_rest, (u_model, y_meas, sd))
+    model, beta_pl, beta_np = model_with(rc, fit.x)
+    x_model = steady_state(model, u_model, x0=plant.observable(x_rest))
+    traj, log = run_closed_loop(plant, x_rest, fitted_controller(rc, model, x_model, u_model), None, HOURS,
+                                plant_k_factor=plant_k)
+    pur_rec = purity_recovery_of(plant, rc, u_design)
+    end = pur_rec(traj.x[-1], traj.u[-1])
+    rest = pur_rec(steady_state(plant, traj.u[-1], x0=traj.x[-1]), traj.u[-1])
+    row = result_row(seed, plant, (fit, evals, beta_pl, beta_np), (traj, log, end, rest))
+    return {**row, "seconds": round(time.time() - t0)}
 
 
 done = set()

@@ -57,9 +57,14 @@ class Controller(Protocol):
     level_loops: LevelLoops | None        # a PI loop on each settler under it, or None (it moves the jacklegs)
 
     @property
-    def t_step(self) -> float: ...        # the control interval, h
-    def step(self, obs: Observation) -> dict: ...      # handle values for this interval
-    def apply(self, handles: dict) -> Inputs: ...      # handle values written into the full inputs
+    def t_step(self) -> float:
+        """The control interval, h."""
+
+    def step(self, obs: Observation) -> dict:
+        """Handle values for this interval."""
+
+    def apply(self, handles: dict) -> Inputs:
+        """Handle values written into the full inputs."""
 
 
 @dataclass
@@ -105,6 +110,8 @@ class ClosedLoop:
             plant_k_factor: the plant's own stage efficiencies, one per stage (multipliers on the
                 transfer rate the controller doesn't know about), or None.
             plant_drift: see above.
+
+        Why eight parameters: the same as run_closed_loop's: four required, the rest optional keywords with defaults.
         """
         self.plant, self.controller, self.scenario = plant, controller, scenario
         self.sensors, self.estimator = sensors, estimator
@@ -283,7 +290,10 @@ class Observer:
 
     def __init__(self, obs, estimator, feed_sensor, product_sensor, plant, heavy, t_step: float):
         """Keep what update() needs (the arguments are in the class docstring), and work out once
-        which of the product analyser's components are product."""
+        which of the product analyser's components are product.
+
+        Why seven parameters: each is a separate source of what the controller is told (the class docstring lists them), and they come from different places in ClosedLoop.
+        """
         self.obs, self.estimator, self.t_step = obs, estimator, t_step
         self.heavy = heavy
         self.feed_label = _label_or_none(feed_sensor)
@@ -293,7 +303,10 @@ class Observer:
             self.product_delay_h = product_sensor.delay_h
 
     def update(self, t: float, u_cmd: Inputs, q_feed: float, readings: dict, q_prod: float | None):
-        """Fold one interval's readings into the Observation."""
+        """Fold one interval's readings into the Observation.
+
+        Why five parameters: this is the Observer interface, which plant_server.PlantServer.update also serves: one interval's time, commands, feed flow, readings and product flow.
+        """
         # the estimator predicts with what was commanded, plus the feed flowmeter's reading
         # Why: that's all a real controller knows; the gap to what the plant got is what the
         # estimator's offset states are for (decision 18).
@@ -368,6 +381,8 @@ class LevelLoops:
             process_gain: k, the interface's answer to a jackleg move (see above).
             lam_h: the closed-loop time constant, h; None means tau_h.
             dt_h: how often the loops read their probes and move, h.
+
+        Why seven parameters: each is a separate tuning fact from the run file (setpoint, starting jacklegs, time constant, bounds, gain, closed-loop time, step).
         """
         self.z_set, self.bounds, self.dt_h = float(z_set), bounds, float(dt_h)
         self.H = np.asarray(H0, float).copy()
@@ -400,6 +415,8 @@ def run_closed_loop(plant: Circuit, x0: np.ndarray, controller: Controller, scen
 
     Example:
         traj, log = run_closed_loop(plant, x0, ctl, Scenario([FeedStep(t=1.0, factor=1.3)]), 12.0)
+
+    Why nine parameters: a plant, a start, a controller and an end time, plus optional keywords with defaults (scenario, sensors, estimator, the plant's stage rates, drift); callers pass only the ones they need.
     """
     loop = ClosedLoop(plant, x0, controller, scenario, sensors, estimator, plant_k_factor, plant_drift)
     return loop.run(t_end)

@@ -87,7 +87,10 @@ class CascadeEnv(gym.Env):
     def __init__(self, config_name: str = "ndpr_plant", t_step: float = 0.5, episode_h: float = 40.0,
                  purity_target: float = 0.995, seed: int | None = None):
         """Load the run file, build the model and the plant, commission and trim the plant, and set
-        up the instruments and the spaces. The arguments are in the class docstring."""
+        up the instruments and the spaces. The arguments are in the class docstring.
+
+        Why five parameters: the environment's settings, each a keyword with a default, the way gym environments are built.
+        """
         super().__init__()
         self.rc = load_config(config_name)
         self.p = self.rc.params

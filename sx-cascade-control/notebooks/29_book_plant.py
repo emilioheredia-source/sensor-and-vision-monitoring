@@ -48,6 +48,7 @@ MECHANISMS = {
 
 
 def plant_for(n_ext, n_scrub, mech: dict):
+    """The circuit for a layout, with the book's mechanisms in `mech` (none: the model itself)."""
     cmap = build_map(n_ext, n_scrub, 4)
     if not mech:
         return Circuit(cmap, rc.params, scrub_reflux=True)
@@ -58,6 +59,7 @@ def plant_for(n_ext, n_scrub, mech: dict):
 
 
 def best(plant, objective="recovery"):
+    """The best recovery at 99.5 % purity, and the least reagent and organic flow at 95 % recovery."""
     u0 = nominal_inputs(rc, plant).replace(Q_strip=NET + float(nominal_inputs(rc, plant).Q_scrub))
     x0 = steady_state(plant, u0)
     r1 = optimize_operating_point(plant, u0, rc.cut, 0.995, FREE, link=reflux_link(NET), x_guess=x0)

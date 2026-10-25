@@ -449,6 +449,8 @@ class Circuit:
         stage. inflows: (aq_mol_in, aq_acid_in, org_mol_in) per stage, mol/h. doses: the
         saponification base spent in each stage, mol/h.
         Returns (dc_aq, dc_org, dh, dz): lists of N entries, in organic order 0 -> N-1.
+
+        Why five parameters: each is a different piece of the stage balance, already worked out by the caller; a bundle would only hide which is which.
         """
         c_aq, c_org, h, z = state
         aq_mol_in, aq_acid_in, org_mol_in = inflows
@@ -657,6 +659,8 @@ class Circuit:
         settler with high flow would answer faster. A step test on a jackleg would settle both.
 
         Returns dz/dt for stage j, m/h.
+
+        Why five parameters: the expressions are built stage by stage, so the stage's three state pieces come in separately.
         """
         geo = self.p.raw["stage_geometry"]
         rho_a = chemistry.rho_aqueous(c_aq_j, self.p)

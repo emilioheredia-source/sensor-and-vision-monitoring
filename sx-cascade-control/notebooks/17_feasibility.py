@@ -48,12 +48,14 @@ RULES = {"design rules": dict(q_org_max=design["pump_headroom_fraction"] * PUMP_
 
 
 # ---- the optimizer, asked for the best recovery at spec ----
-def best_recovery(circuit, k_factor, rc, feed_fraction=1.0, q_org_max=None, max_loading=None) -> float:
+def best_recovery(plant: tuple, feed_fraction=1.0, q_org_max=None, max_loading=None) -> float:
     """The best recovery the circuit can reach at the design purity (99.5 %), over every setting of
     the four handles within their bounds, at feed_fraction of the run file's feed rate.
+    plant: (circuit, its stage efficiencies k_factor, its run file).
 
     Two starting points (the run file's handles, and more organic and scrub), best kept: IPOPT
     finds a local optimum, and two starts guard against a poor one. nan if neither converges."""
+    circuit, k_factor, rc = plant
     u0 = nominal_inputs(rc, circuit).replace(k_factor=k_factor,
                                              Q_feed=float(nominal_inputs(rc, circuit).Q_feed) * feed_fraction)
     free = {"Q_org": (design["organic_min_L_per_h"], q_org_max), "Q_scrub": (50.0, 2000.0),
@@ -68,11 +70,11 @@ def best_recovery(circuit, k_factor, rc, feed_fraction=1.0, q_org_max=None, max_
     return best
 
 
-def feed_needed(circuit, k_factor, rc) -> float:
+def feed_needed(plant: tuple) -> float:
     """The highest feed fraction (of FEED_FRACTIONS) at which 95 % recovery at spec is reachable
-    under the design rules; nan if none of them is enough."""
+    under the design rules; nan if none of them is enough. plant: (circuit, k_factor, run file)."""
     for f in FEED_FRACTIONS:
-        if best_recovery(circuit, k_factor, rc, f, **RULES["design rules"]) >= TARGET:
+        if best_recovery(plant, f, **RULES["design rules"]) >= TARGET:
             return f
     return float("nan")
 
@@ -85,11 +87,11 @@ def separation_factor(params) -> float:
 rows = []
 
 
-def record(kind: str, label, beta: float, circuit, k_factor, rc) -> None:
-    """Score one plant on the questions above and keep the row."""
-    best = {name: best_recovery(circuit, k_factor, rc, **opts) for name, opts in RULES.items()}
+def record(kind: str, label, beta: float, plant: tuple) -> None:
+    """Score one plant on the questions above and keep the row. plant: (circuit, k_factor, run file)."""
+    best = {name: best_recovery(plant, **opts) for name, opts in RULES.items()}
     needs_cut = not (best["relaxed"] >= TARGET)
-    feed = feed_needed(circuit, k_factor, rc) if needs_cut else 1.0
+    feed = feed_needed(plant) if needs_cut else 1.0
     rows.append({"kind": kind, "plant": label, "separation_factor": round(beta, 3),
                  "best_recovery_design_rules": best["design rules"], "best_recovery_relaxed": best["relaxed"],
                  "feed_fraction_for_95": feed})
@@ -102,7 +104,7 @@ def record(kind: str, label, beta: float, circuit, k_factor, rc) -> None:
 for seed in SEEDS:
     rc = load_config(CONFIG, overrides={"plant": {"seed": seed}})
     plant, k_factor = PLANTS["perturbed"].build(rc)
-    record("seed", seed, separation_factor(plant.p), plant, k_factor, rc)
+    record("seed", seed, separation_factor(plant.p), (plant, k_factor, rc))
 
 # ---- 4. the model, with only the separation factor changed ----
 model = build_circuit(rc0)
@@ -111,7 +113,7 @@ for beta in BETAS:
     K_beta = K.copy()
     K_beta[model.p.index("LaCe")] = K[model.p.index("Pr")] / beta
     circuit = Circuit(model.cmap, replace(model.p, K=K_beta), model=model.model, scrub_reflux=model.scrub_reflux)
-    record("beta", beta, beta, circuit, np.ones(model.N), rc0)
+    record("beta", beta, beta, (circuit, np.ones(model.N), rc0))
 
 out = HERE / "runs" / f"feasibility_{CONFIG}.csv"
 with open(out, "w", newline="") as f:

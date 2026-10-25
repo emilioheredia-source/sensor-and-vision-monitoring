@@ -77,6 +77,29 @@ than a controller that inverts the model can stand. On 13 plants some of the sol
 slightly after 4,000 simulated hours, so those plants' exact values are less certain; the six
 plants where every solve settled give 17 to 28.
 
+## Found in v1.3, not rerun
+
+### 4. The operating window (notebook 19, Oct 16)
+
+**What was said (FINDINGS section 1):** at the design point the scrub window that keeps the product
+on spec and recovery on target is 1.8 L/h wide, at 28 stages.
+
+**What was found:** the table can't be reproduced with its own code. The steady states behind it
+stop at 250 simulated hours, before they've fully settled (the same cause as 2 and 3), so the
+answer depends on where each solve starts. Rerun as committed, the purity search finds no crossing
+and writes NaN; with the search kept below the scrub flow where the product collapses, the window
+at the design point is 0.6 L/h.
+
+**What holds:** both numbers are well under 1 % of the scrub flow (239 L/h), so the window is very
+narrow either way, which is all the later work uses. The exact width needs the steady states
+solved to rest, as notebook 24 now does with `--settled`; that's listed in the README under What's
+next.
+
+Two other stored outputs were written by older code and differ in detail when rerun today: the
+closed-loop scorecards in notebook 13 (REPORT.md, first version) and the watchdog journal in
+notebook 36 after the re-arm at 30 h. The controller has changed since both were written; what the
+documents take from them doesn't depend on the exact lines.
+
 ## What didn't change
 
 The stage-by-stage profile at the design point is the same to four decimals when fully settled.

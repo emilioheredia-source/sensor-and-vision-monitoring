@@ -188,6 +188,8 @@ class SettlerCircuit(Circuit):
         org_in) per stage, mol/h. doses: base spent per stage, mol/h. Q_aq: aqueous flow out of
         each stage, L/h.
         Returns rates, one per block: rates[k] = (d c_aq, d c_org, d h), lists of N entries.
+
+        Why five parameters: as Circuit._stage_balances, pieces already worked out per stage by the caller.
         """
         aq_in, acid_in, org_in = inflows
         V_cells = self._cell_volumes()
@@ -204,6 +206,8 @@ class SettlerCircuit(Circuit):
         Each cell is fed by the block before it: the first cell by the mixer, the outlet cell by
         the last inner cell. flows: (Q_aq through the stage, Q_org), L/h. volumes: one cell's
         (V_aq, V_org), L.
+
+        Why five parameters: where to write, the block layout, which stage, and that stage's flows and volumes.
         """
         for k in range(1, len(blocks)):
             _store(rates[k], j, self._cell(_stage(blocks[k], j), _stage(blocks[k - 1], j), flows, volumes))
@@ -421,6 +425,8 @@ class DriftingCircuit(Circuit):
         periods_h: periods of the sine waves, h.
         trend_per_week: a steady slide of La+Ce against the rest, log units per week (0 = none).
         The other arguments are Circuit's.
+
+        Why five parameters: the drift's random seed and four sizes from the run file.
         """
         rng = np.random.default_rng(seed + 2000)
         self._phases = rng.uniform(0.0, 2 * np.pi, size=(2, len(periods_h)))
@@ -519,6 +525,8 @@ class BookCircuit(DriftingCircuit):
         h_half: acid where the transfer rate is halved from its low-acid value, mol/L (item 4).
         h_k_ref: acid where the plant's rate equals the model's, mol/L (item 4).
         The other arguments are DriftingCircuit's and Circuit's.
+
+        Why seven parameters: the book's relations, each with its own number from the run file.
         """
         self.beta_mid, self.trace_drop, self.scrub_beta_factor = beta_mid, trace_drop, scrub_beta_factor
         self.n_plant, self.h_ref, self.h_half, self.h_k_ref = n_plant, h_ref, h_half, h_k_ref

@@ -1,6 +1,6 @@
 # Simulating and controlling a rare earth solvent extraction circuit
 
-**Version 1.2**, October 25, 2026. [What changed in this version](#whats-new-in-v12) (or the [full changelog](CHANGELOG.md))
+**Version 1.3**, October 25, 2026. [What changed in this version](#whats-new-in-v13) (or the [full changelog](CHANGELOG.md))
 
 A rare earth solvent extraction circuit, built on a computer from the
 chemistry and published data, and probed to see how it behaves: what it
@@ -11,29 +11,39 @@ readings that didn't hold up and what replaced them.
 This is a simulation. None of it is plant data, and it hasn't been checked
 against a running circuit.
 
-## What's new in v1.2
+## What's new in v1.3
 
 The controller keeps being tested on harder and more realistic cases, to find where it falls short; each version says what was found and what was done about it.
 
-- The physics fit now adjusts the numbers the readings can see and the controller needs: the two
-  separation factors and the acid exponent. It's the closest estimator on the test plants.
-- The estimators were tested on plants with physics the model leaves out, and a network half the
-  size does as well as the one used before.
-- How accurate the model needs to be depends on which way it's wrong (below, under What the model
-  shows).
-- The purity dip at a feed switch is the controller's limit, not the plant's.
-- Steady states are solved all the way to rest, and a simulation that stalls stops with a clear
-  error.
+This version found two blind spots in the controller, the acid running out and a slow drift hidden
+near 100 % purity, and tested three fixes, one change at a time on ten plants, then all together
+over 600 hours.
 
-Earlier results that changed:
+- With one number in its model wrong (how strongly extraction answers to acid), the controller kept
+  raising the saponification until the acid ran out. Refitting the model's three uncertain numbers
+  every 2 hours while it runs removes what the wrong model adds.
+- Even with the right model, the controller let the extraction acid fall under its floor on half
+  the plants. Capping the saponification by the plant's acid balance stops that with any model.
+- Near 100 % purity the reading barely moves while the plant can be heading off spec. Checking where
+  the model says the plant will settle stops that drift.
+- All three together, from a wrong model over 600 hours: no stall, no drift, no acid under the
+  floor, and the same or fewer hours below spec on every plant.
+- Five more ideas, each tested on its own:
+  - checking the settled point every half hour instead of every 12 hours is no better;
+  - the circuit's metal stock is a useful cross-check for an operator;
+  - the controller holding recovery counted by losses is no better;
+  - a penalty that starts before the acid floor keeps a right model off it but can't help a wrong one;
+  - working in log impurity helps with the drift but doesn't stop it.
+- Correcting the model at its inputs instead of its outputs was screened first and not built: it's
+  better only when the model is accurate, and with this model's errors it went unstable on most
+  plants.
+- [LITERATURE.md](LITERATURE.md): who worked on these problems first, and what this project takes
+  from them.
 
-- v1.1 said the network read the separation factors 4 to 7 times closer than the physics fit. With
-  the right numbers fitted, the physics fit is closer.
-- The plant is more lopsided than first measured. At each plant's own design point the model's gains
-  are off by more than a controller can stand on all 19 plants, not 17.
-
-What changed in each version is in [CHANGELOG.md](CHANGELOG.md), and the earlier results that
-changed, with the reasons, are in [CHANGES_TO_EARLIER_RESULTS.md](CHANGES_TO_EARLIER_RESULTS.md).
+No earlier result changed in v1.3. One older table, the operating window from notebook 19, turned
+out not to be reproducible as committed; the conclusion holds. What changed in each version is in
+[CHANGELOG.md](CHANGELOG.md), and earlier results that changed or were found not reproducible, with
+the reasons, are in [CHANGES_TO_EARLIER_RESULTS.md](CHANGES_TO_EARLIER_RESULTS.md).
 
 ## At a glance
 
@@ -42,13 +52,13 @@ changed, with the reasons, are in [CHANGES_TO_EARLIER_RESULTS.md](CHANGES_TO_EAR
 | Process modelling from the chemistry | The extraction reaction and its mass-action law, metal and acid balances in every stage, transfer at a finite rate, the settler interface from the two liquid columns; constants fitted to published batch data. In CasADi. The model figure below; [APPENDIX_A_model.md](APPENDIX_A_model.md) |
 | Why the separation is hard | Purity goes as the flow ratio raised to the number of stages, so the window is a few percent wide; the plant is ill-conditioned like a high-purity distillation column. Checked against countercurrent theory and a 2018 textbook, and a harder test plant built from the book's relations. [FINDINGS_why_hard.md](FINDINGS_why_hard.md), notebooks 24, 29 |
 | Optimization | Steady-state design with IPOPT: least reagent for a given purity and recovery; stage-count sweep; what operating margin costs and buys. `src/design.py`, notebooks 02, 04, 26 |
-| Model predictive control | Linear MPC on a receding horizon, re-linearized on the nonlinear model as it runs, with purity, recovery and acidity constraints, over a PI level loop on each settler. Tested on 20 plants drawn inside published ranges, 8 upsets each. `src/mpc.py`, [APPENDIX_B_control.md](APPENDIX_B_control.md), notebook 14 |
+| Model predictive control | Linear MPC on a receding horizon, re-linearized on the nonlinear model as it runs, with purity, recovery and acidity constraints, over a PI level loop on each settler. Tested on 20 plants drawn inside published ranges, 8 upsets each. Optionally, every 12 hours the controller checks where its model says the plant will settle; in the v1.3 studies the saponification is also capped by the plant's acid balance. `src/mpc.py`, [APPENDIX_B_control.md](APPENDIX_B_control.md), notebooks 14, 52, 55 |
 | Sensors and state estimation | A Kalman filter on the instrument readings, with each instrument's calibration drift as a state. Which instruments, where, for what cost: on-line XRF at the ends, UV-Vis ratios inside the cascade, lab assays. `src/estimator.py`, notebooks 18, 31 |
-| System identification, drift and faults | The numbers to fit chosen by what the readings can see and what the controller needs: the two separation factors and the acid exponent, fitted to noisy readings from several starting points. A daily refit follows a slow loss of separation; the trend of the fit flags a sudden fault. Notebooks 31, 32, 33, 43 |
+| System identification, drift and faults | The numbers to fit chosen by what the readings can see and what the controller needs: the two separation factors and the acid exponent, fitted to noisy readings from several starting points. A daily refit follows a slow loss of separation; refitting every 2 hours on a short window of readings lets the controller correct a wrong model while it runs; the trend of the fit flags a sudden fault. Notebooks 31, 32, 33, 43, 51 |
 | Machine learning | A neural network (PyTorch) trained on simulated plants that reads the separation factors from the instruments in a millisecond. On the test plants it's close to the physics fit on a typical plant (0.004 against 0.002) and further off on the worst (0.18 against 0.013), and it's only as good as the plants it learned from. A network half the size does as well. A PPO policy (stable-baselines3) compared with the MPC on the same episodes. Notebooks 35, 43 to 45, 09 |
 | Deployment and safety | The controller goes in steps (shadow, advisory, closed loop) inside move limits, with a watchdog and a journal; a feed-loss interlock; model updates checked, reviewed, versioned and reversible. `src/deployment.py`, `src/interlock.py`, `src/model_registry.py`, notebooks 34, 36, 37 |
 | Plant integration | An optional way to run: the plant as an OPC UA server (asyncua) with tagged process values and setpoints, the controller as a client that sees only tags, and a small historian that records every tag in SQLite. A run over OPC UA gives exactly the same moves as the normal in-process run. `src/plant_server.py`, `src/historian.py`, notebook 38 |
-| Software | A desktop workbench to set up, run, watch and compare runs, with a report of each run and session logs; settings saved as run files; every number in the parameter file states its source; 331 automated tests, including a check of the numbers the documents quote against the result tables, and a check against reference runs to the last bit. `workbench/`, `params/`, `tests/` |
+| Software | A desktop workbench to set up, run, watch and compare runs, with a report of each run and session logs; settings saved as run files; every number in the parameter file states its source; 389 automated tests, including a check of the numbers the documents quote against the result tables, and a check against reference runs to the last bit. `workbench/`, `params/`, `tests/` |
 
 ## The process
 
@@ -164,9 +174,27 @@ above it moves the organic flow, the scrub flow and acid, and the
 saponification. The jacklegs could also be MPC handles, as in the first version;
 local loops hold the interfaces tighter (ARCHITECTURE.md decision 32). On the
 left, the slowest layer: the model's numbers refitted to the plant's readings,
-reviewed before they're used.*
+reviewed before they're used. Dotted: the rest-point check (a setting in the
+controller, off by default) and, in the v1.3 studies, the acid-balance cap on the
+saponification and the 2-hour refit.*
 
 More detail: the MPC as equations in [Appendix B, B.2 and B.3](APPENDIX_B_control.md#b2-model-state-output-bias-linearization-and-prediction-srcmpcpy); why the plant is hard for it in [FINDINGS section 4](FINDINGS_why_hard.md#4-why-a-model-based-controller-struggles-ill-conditioning); the level loops in [ARCHITECTURE.md](ARCHITECTURE.md), decision 32.
+
+**Keep the controller out of trouble.** Two things help when the model is wrong
+or the plant is slow. The saponification is never set higher than the acid
+balance allows: three times the metal the loaded organic carries out, plus the
+acid coming in, less what the raffinate keeps. That uses no fitted number, so it
+holds when the model is wrong. It governs the acid leaving in the raffinate, not
+every stage: aiming 3 mmol/L above the acid floor kept two of three plants clear
+of it at no cost, and on the third a stage inside the extraction section still
+touched the floor. And every 12 hours the controller solves its model to rest on
+the handles it's holding, so its long-run limits are set where the plant is
+heading, not where it is now. Near 100 % purity that matters: the reading barely
+moves while the plant can be heading off spec. The rest-point check is a setting
+in the controller, off by default; the balance cap and the 2-hour refit are
+built in the study notebooks around it.
+
+More detail: [FINDINGS, phase 10](FINDINGS_why_hard.md#phase-10-2026-10-24-the-controller-learning-the-plants-numbers-while-it-runs-notebook-51); [LITERATURE.md](LITERATURE.md); [ARCHITECTURE.md](ARCHITECTURE.md), decision 42.
 
 **Sensors as data.** What each instrument reads, how noisy, how late, how
 often, and an estimator that puts the readings together. Then which
@@ -188,11 +216,18 @@ which says how strongly extraction answers to acidity. Those three were picked b
 checking every number in the model: how much the readings change when it moves,
 which ones the readings can't tell apart, and how much getting it wrong changes
 the control. A fourth, all the extraction constants moving together, can't be
-told apart from the acid exponent, and the controller does as well without it. The fit is a proposal: an engineer looks at it
-before the controller uses it. Letting the model learn on its own in
-production would let one bad reading, a fouled probe or a fault get built into
-it, and the controller would then act on that. The same daily fit, watched over
-time, also tells a slow drift from a sudden fault.
+told apart from the acid exponent, and the controller does as well without it.
+The daily fit is a proposal: an engineer looks at it before the controller uses
+it. Letting the model learn on its own in production would let one bad reading,
+a fouled probe or a fault get built into it, and the controller would then act
+on that. The same daily fit, watched over time, also tells a slow drift from a
+sudden fault.
+
+In the v1.3 studies, refitting the same three numbers every 2 hours on a short
+window of readings corrected a wrong model while the controller ran. Each refit
+stays inside fixed bounds. A large change should still go to an engineer
+first, the way the daily fit does; that check isn't built for the 2-hour refit
+yet (see Limits).
 
 More detail: [FINDINGS, phases 3 and 4](FINDINGS_why_hard.md#phases-3-and-4-2026-10-17-a-plant-closer-to-the-book-and-identify-then-control) (identify, then control), [phase 5](FINDINGS_why_hard.md#phase-5-2026-10-18-from-a-simulation-toward-a-plant) (supervised updates, the learned estimator), [phase 8](FINDINGS_why_hard.md#phase-8-2026-10-22-a-fair-test-of-the-physics-fit-tests-0-to-2-notebook-43) (which numbers to fit, and the fit against the network).
 
@@ -307,6 +342,17 @@ These are properties of the simulated plant. A real plant will have its own.
 - The purity dip at a feed switch is the controller's limit, not the plant's. An
   optimizer that knows the plant exactly holds 99.5 % through the switch on
   every plant tested, losing under 5 % of the NdPr to the raffinate.
+- A controller is blind to what its model leaves out. With the acid exponent
+  wrong, the controller kept raising the saponification and cutting the scrub
+  acid until the acid ran out; even with the right model it ran the extraction
+  acid under its floor on 5 of 10 plants. Capping the saponification by the acid
+  balance kept the acid from going under the floor on every plant with every
+  model tried, at no cost in time below spec.
+- Purity near 100 % hides a slow drift. On 2 of 10 plants the purity read
+  99.99 % for 600 hours while the plant was heading for about 94.5 %; the
+  recovery reading rising above 100 % was the visible sign (the product was
+  coming out of the circuit's stock). Checking where the model says the plant
+  will settle stopped it: those plants settle at 99.97 to 99.99 %.
 
 More detail: [FINDINGS_why_hard.md](FINDINGS_why_hard.md#the-short-version).
 
@@ -350,12 +396,33 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pixi run python -m pytest tests
 | --- | --- | --- |
 | [FINDINGS_why_hard.md](FINDINGS_why_hard.md) | Why the separation is sensitive, with the literature | Current |
 | [CHANGELOG.md](CHANGELOG.md) | What changed in each version | Current |
+| [LITERATURE.md](LITERATURE.md) | What this project takes from the literature, and where | Current |
 | [APPENDIX_A_model.md](APPENDIX_A_model.md) | The model: assumptions, equations, what an SX engineer would question | Equations current. Worked numbers are for the first 30 L plant, not the main case (note at the top) |
 | [APPENDIX_A_parameters.md](APPENDIX_A_parameters.md) | Every number in the parameter file, with where it came from | Current. The main case's own settings are in `configs/ndpr_main.toml` |
 | [APPENDIX_B_control.md](APPENDIX_B_control.md) | The design optimizer, the MPC, the estimator, as equations | Current for what it covers. The later pieces (level loops, acidity floor, interlock, guard) are in ARCHITECTURE.md (note at the top) |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | How the code is put together, and every design decision with its reason | Current |
 | [PROGRESS.md](PROGRESS.md) | The build log, newest first | Current |
 | [REPORT.md](REPORT.md) | The full write-up of the first version | First version, kept as the record. Corrections are marked where later work replaced it |
+
+## What's next
+
+Version 1.3 is the last for now. These are kept for later, the things worth doing next if this were a
+running project:
+
+- Close the two gaps listed under Limits: run the 2-hour refit and the rest-point check from a
+  state estimated from the instruments, with their noise and delays, and give the refit the same
+  acceptance check the daily fit has (bounds, how well it explains the readings, an engineer's
+  review for a large change).
+- Hold the acid in every stage, not only at the outlet: pH readings in the estimator, or a limit per
+  stage.
+- Build the acid-balance cap and the 2-hour refit into the controller itself, and run them through
+  all the upsets.
+- Show operators recovery counted by losses and the circuit's metal stock, next to the usual readings.
+- Try log impurity together with the rest-point check; each was tried alone.
+- Correcting the model at its inputs, only with an accurate model and a properly designed estimator.
+- Rerun the operating window (notebook 19) with its steady states solved to rest.
+- Most of all, calibrate on a real plant, starting with the acid exponent: every prediction of what
+  the saponification and the scrub acid will do goes through it.
 
 ## Limits
 
@@ -369,3 +436,8 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pixi run python -m pytest tests
   best a controller can do is stay out of the way.
 - The OPC UA link runs without encryption or certificates; a plant would
   require both.
+- The 2-hour refit and the rest-point check start from the plant's full state; a
+  plant would need it estimated from the instruments, which isn't tested yet.
+  The check that should send a large refit to an engineer isn't built yet.
+- The acid-balance cap governs the acid at the outlet. Holding every stage above
+  its floor needs the stage acid itself (pH probes, or a hard limit per stage).

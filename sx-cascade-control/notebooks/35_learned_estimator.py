@@ -38,6 +38,7 @@ import os
 import sys
 import time
 import warnings
+from dataclasses import dataclass
 from multiprocessing import Pool
 from pathlib import Path
 
@@ -62,6 +63,7 @@ WORKERS = max(1, (os.cpu_count() or 1) - 2)
 OUT = HERE / "runs" / (f"learned_estimator_{CONFIG}.csv" if not LONG else f"learned_estimator_{CONFIG}_long.csv")
 TRAIN_SEEDS = range(1000, 1600) if MAIN else range(1000, 2200)
 CHUNK = 50
+EPOCHS = 400                                 # the net's training passes (also the cosine schedule's period)
 SETTINGS_PER_PLANT = 8                       # the design flows and seven random settings around them
 SPREAD = {"Q_org": 0.08, "Q_scrub": 0.08, "h_scrub": 0.10, "saponified_fraction": 0.05, "Q_feed": 0.10}
 HANDLES = tuple(SPREAD)
@@ -82,6 +84,7 @@ def nb31():
 
 
 def plant_for(seed):
+    """The run file, the perturbed plant and its stage-rate factors for one seed."""
     rc = load_config(CONFIG, overrides={"plant": {"mismatch": "perturbed", "seed": seed, "generator": "ratios"}})
     plant, plant_k = PLANTS["perturbed"].build(rc)
     return rc, plant, plant_k
@@ -90,6 +93,7 @@ def plant_for(seed):
 def true_log_betas(plant, model):
     """log of the plant's Pr/(La+Ce) and Nd/Pr separation factors over the model's."""
     def betas(p):
+        """The Pr/(La+Ce) and Nd/Pr separation factors of a parameter set."""
         names = list(p.names)
         K = np.asarray(p.K, float)
         la, pr, nd = names.index("LaCe"), names.index("Pr"), names.index("Nd")
@@ -111,32 +115,52 @@ def make_chunk(start):
     m = nb31()
     rows_y, rows_h, rows_lab, rows_seed = [], [], [], []
     for seed in range(start, start + CHUNK):
-        rc, plant, plant_k = plant_for(seed)
-        model = build_circuit(rc)
-        names = list(plant.p.names)
-        label = true_log_betas(plant, model)
-        u0 = nominal_inputs(rc, plant).replace(k_factor=plant_k)
-        rng = np.random.default_rng(seed)
-        x_prev = None
-        for k in range(SETTINGS_PER_PLANT):
-            changes = {} if k == 0 else {h: float(getattr(u0, h)) * (1 + rng.uniform(-s, s)) for h, s in SPREAD.items()}
-            u = u0.replace(**changes)
-            with warnings.catch_warnings():
-                warnings.simplefilter("error", RuntimeWarning)          # an unconverged state isn't a sample
-                try:
-                    x = steady_state(plant, u, x0=x_prev)
-                except (RuntimeWarning, RuntimeError):
-                    continue
-            x_prev = x if k == 0 else x_prev
-            rows_y.append(m.readings(plant, x, u, names))
-            rows_h.append(handles_of(u, u0))
-            rows_lab.append(label)
-            rows_seed.append(seed)
+        ys, hs, labs = plant_rows(m, seed)
+        rows_y += ys
+        rows_h += hs
+        rows_lab += labs
+        rows_seed += [seed] * len(ys)
     np.savez(path, y=np.array(rows_y), h=np.array(rows_h), label=np.array(rows_lab), seed=np.array(rows_seed))
     return str(path)
 
 
+def plant_rows(m, seed):
+    """One training plant at its design flows and at the random settings around them: (readings,
+    handles, labels) for each setting that settled. m: notebook 31 (its readings)."""
+    rc, plant, plant_k = plant_for(seed)
+    model = build_circuit(rc)
+    names = list(plant.p.names)
+    label = true_log_betas(plant, model)
+    u0 = nominal_inputs(rc, plant).replace(k_factor=plant_k)
+    rng = np.random.default_rng(seed)
+    x_prev = None
+    ys, hs, labs = [], [], []
+    for k in range(SETTINGS_PER_PLANT):
+        changes = {} if k == 0 else {h: float(getattr(u0, h)) * (1 + rng.uniform(-s, s)) for h, s in SPREAD.items()}
+        u = u0.replace(**changes)
+        x = settled_or_none(plant, u, x_prev)
+        if x is None:
+            continue
+        x_prev = x if k == 0 else x_prev
+        ys.append(m.readings(plant, x, u, names))
+        hs.append(handles_of(u, u0))
+        labs.append(label)
+    return ys, hs, labs
+
+
+def settled_or_none(plant, u, x_prev):
+    """The plant's steady state on inputs u, or None if it doesn't converge (an unconverged state isn't
+    a sample)."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        try:
+            return steady_state(plant, u, x0=x_prev)
+        except (RuntimeWarning, RuntimeError):
+            return None
+
+
 def make_data():
+    """Simulate every training plant in chunks across the workers; each chunk to its own file."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     starts = list(range(TRAIN_SEEDS.start, TRAIN_SEEDS.stop, CHUNK))
     t0 = time.time()
@@ -160,17 +184,21 @@ def noise_sd(y):
 
 
 def features(y, h):
+    """The network's inputs: each reading scaled by its noise floor and squashed (arcsinh), then the handles."""
     return np.hstack([np.arcsinh(y / FLOOR), h])
 
 
 class Scaler:
     def __init__(self, a):
+        """Remember each column's mean and spread."""
         self.mean, self.sd = a.mean(axis=0), a.std(axis=0) + 1e-12
 
     def __call__(self, a):
+        """Scale to zero mean and unit spread."""
         return (a - self.mean) / self.sd
 
     def back(self, a):
+        """Undo the scaling."""
         return a * self.sd + self.mean
 
 
@@ -179,57 +207,95 @@ def train(dirs=None, out_dir=None):
     (default DATA_DIR)."""
     out_dir = Path(out_dir or DATA_DIR)
     import torch
-    from sklearn.linear_model import Ridge
     torch.manual_seed(0)
     torch.set_num_threads(WORKERS)
-    y, h, lab, pid = load_data(dirs)
+    data = load_data(dirs)
     rng = np.random.default_rng(0)
-    plants = np.unique(pid)
-    held_out = set(rng.choice(plants, size=len(plants) // 7, replace=False))
-    val = np.array([p in held_out for p in pid])
-    print(f"{len(y)} rows from {len(plants)} plants; {val.sum()} rows from {len(held_out)} plants held out")
-
-    def noisy(rows):
-        return y[rows] + rng.normal(0.0, noise_sd(y[rows]))
-
-    # fixed noisy copies for validation and for the ridge (five noise draws per row)
-    X_val = features(noisy(val), h[val])
-    tr = np.where(~val)[0]
-    X_ridge = np.vstack([features(noisy(tr), h[tr]) for _ in range(5)])
-    L_ridge = np.vstack([lab[tr]] * 5)
-    sx, sl = Scaler(X_ridge), Scaler(L_ridge)
-
-    ridge = Ridge(alpha=1.0).fit(sx(X_ridge), sl(L_ridge))
-    ridge_rmse = np.sqrt(((sl.back(ridge.predict(sx(X_val))) - lab[val]) ** 2).mean(axis=0))
-
-    net = torch.nn.Sequential(torch.nn.Linear(X_val.shape[1], 64), torch.nn.SiLU(),
-                              torch.nn.Linear(64, 64), torch.nn.SiLU(), torch.nn.Linear(64, 2))
-    opt = torch.optim.Adam(net.parameters(), lr=1e-3, weight_decay=1e-5)
-    sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=400)
-    Xv = torch.tensor(sx(X_val), dtype=torch.float32)
-    best, best_state = np.inf, None
-    for epoch in range(400):
-        order = rng.permutation(tr)
-        for b in range(0, len(order), 256):
-            rows = order[b:b + 256]
-            X = torch.tensor(sx(features(noisy(rows), h[rows])), dtype=torch.float32)
-            L = torch.tensor(sl(lab[rows]), dtype=torch.float32)
-            loss = ((net(X) - L) ** 2).mean()
-            opt.zero_grad(); loss.backward(); opt.step()
-        sched.step()
-        with torch.no_grad():
-            pred = sl.back(net(Xv).numpy())
-        rmse = np.sqrt(((pred - lab[val]) ** 2).mean(axis=0))
-        if rmse.sum() < best:
-            best, best_state = rmse.sum(), {k: v.clone() for k, v in net.state_dict().items()}
-            best_rmse = rmse
-        if epoch % 50 == 0:
-            print(f"epoch {epoch}: held-out rmse of log beta {rmse.round(4)}", flush=True)
+    val, tr = held_out_rows(data, rng)
+    noisy = noisy_readings(data[0], rng)
+    X_val = features(noisy(val), data[1][val])
+    ridge, sx, sl, ridge_rmse = fit_ridge(data, tr, (noisy, X_val, val))
+    net, best_state, best_rmse = fit_net(data, (tr, val), (noisy, X_val, sx, sl), rng)
     net.load_state_dict(best_state)
     torch.save({"net": best_state, "sx": (sx.mean, sx.sd), "sl": (sl.mean, sl.sd)}, out_dir / "net.pt")
     import pickle
     pickle.dump({"ridge": ridge, "sx": sx, "sl": sl}, open(out_dir / "ridge.pkl", "wb"))
     print(f"held-out plants, rmse of log beta [Pr/(La+Ce), Nd/Pr]: ridge {ridge_rmse.round(4)}, net {best_rmse.round(4)}")
+
+
+def held_out_rows(data, rng):
+    """A seventh of the plants held out, whole: (held-out row mask, training row indices)."""
+    y, _, _, pid = data
+    plants = np.unique(pid)
+    held_out = set(rng.choice(plants, size=len(plants) // 7, replace=False))
+    val = np.array([p in held_out for p in pid])
+    print(f"{len(y)} rows from {len(plants)} plants; {val.sum()} rows from {len(held_out)} plants held out")
+    return val, np.where(~val)[0]
+
+
+def noisy_readings(y, rng):
+    """A function rows -> the readings of these rows with noise added (fresh noise every call)."""
+    def noisy(rows):
+        """The readings of these rows with noise added."""
+        return y[rows] + rng.normal(0.0, noise_sd(y[rows]))
+    return noisy
+
+
+def fit_ridge(data, tr, held):
+    """The ridge on fixed noisy copies of the training rows (five noise draws per row), and the scalers.
+    held: (noisy, held-out features, held-out mask). Returns (ridge, input scaler, label scaler, its
+    held-out rmse)."""
+    from sklearn.linear_model import Ridge
+    _, h, lab, _ = data
+    noisy, X_val, val = held
+    X_ridge = np.vstack([features(noisy(tr), h[tr]) for _ in range(5)])
+    L_ridge = np.vstack([lab[tr]] * 5)
+    sx, sl = Scaler(X_ridge), Scaler(L_ridge)
+    ridge = Ridge(alpha=1.0).fit(sx(X_ridge), sl(L_ridge))
+    ridge_rmse = np.sqrt(((sl.back(ridge.predict(sx(X_val))) - lab[val]) ** 2).mean(axis=0))
+    return ridge, sx, sl, ridge_rmse
+
+
+def fit_net(data, split, scaled, rng):
+    """The net, trained EPOCHS epochs with fresh noise every batch, keeping the best held-out epoch.
+    split: (training rows, held-out mask); scaled: (noisy, held-out features, scalers x and label).
+    Returns (the net, the best epoch's weights, its held-out rmse)."""
+    import torch
+    tr, val = split
+    noisy, X_val, sx, sl = scaled
+    lab = data[2]
+    net = torch.nn.Sequential(torch.nn.Linear(X_val.shape[1], 64), torch.nn.SiLU(),
+                              torch.nn.Linear(64, 64), torch.nn.SiLU(), torch.nn.Linear(64, 2))
+    opt = torch.optim.Adam(net.parameters(), lr=1e-3, weight_decay=1e-5)
+    sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=EPOCHS)
+    Xv = torch.tensor(sx(X_val), dtype=torch.float32)
+    best, best_state, best_rmse = np.inf, None, None
+    for epoch in range(EPOCHS):
+        one_epoch(net, opt, (rng.permutation(tr), noisy, data, (sx, sl)))
+        sched.step()
+        with torch.no_grad():
+            pred = sl.back(net(Xv).numpy())
+        rmse = np.sqrt(((pred - lab[val]) ** 2).mean(axis=0))
+        if rmse.sum() < best:
+            best, best_state, best_rmse = rmse.sum(), {k: v.clone() for k, v in net.state_dict().items()}, rmse
+        if epoch % 50 == 0:
+            print(f"epoch {epoch}: held-out rmse of log beta {rmse.round(4)}", flush=True)
+    return net, best_state, best_rmse
+
+
+def one_epoch(net, opt, batches):
+    """One pass over the training rows in batches of 256. batches: (row order, noisy, data, scalers)."""
+    import torch
+    order, noisy, data, (sx, sl) = batches
+    _, h, lab, _ = data
+    for b in range(0, len(order), 256):
+        rows = order[b:b + 256]
+        X = torch.tensor(sx(features(noisy(rows), h[rows])), dtype=torch.float32)
+        L = torch.tensor(sl(lab[rows]), dtype=torch.float32)
+        loss = ((net(X) - L) ** 2).mean()
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
 
 
 def load_estimators(model_dir=None):
@@ -245,6 +311,7 @@ def load_estimators(model_dir=None):
     sl_m, sl_s = saved["sl"]
 
     def net_estimate(y, h):
+        """The network's log separation factors from one set of readings and handles."""
         X = (features(y[None], h[None]) - sx_m) / sx_s
         with torch.no_grad():
             return net(torch.tensor(X, dtype=torch.float32)).numpy()[0] * sl_s + sl_m
@@ -252,87 +319,142 @@ def load_estimators(model_dir=None):
     r = pickle.load(open(model_dir / "ridge.pkl", "rb"))
 
     def ridge_estimate(y, h):
+        """The ridge's log separation factors from one set of readings and handles."""
         return r["sl"].back(r["ridge"].predict(r["sx"](features(y[None], h[None]))))[0]
 
     return net_estimate, ridge_estimate
 
 
 # ---- 3. the test plants ---------------------------------------------------------------------------
-def test_one(seed):
-    """One of notebook 31's plants: the same noisy readings, both estimators, the net's answer as
-    the least-squares starting point, and (hard plants) the MPC on the net's model for 120 h."""
-    from scipy.optimize import least_squares
+@dataclass
+class TestPlant:
+    """One of notebook 31's test plants at rest with notebook 31's noisy readings of it."""
+    rc: object
+    plant: object
+    plant_k: np.ndarray
+    model: object
+    x_rest: np.ndarray
+    u_design: object
+    y: np.ndarray
+    sd: np.ndarray
+    h: np.ndarray
+    truth: np.ndarray
+
+
+def test_plant(m, seed):
+    """The plant, commissioned at rest, and the readings notebook 31's fit saw (same noise draw)."""
     from src.commission import commission
-    from src.loop import run_closed_loop
-    from src.metrics import heavy_mask, product_purity
-    from src.mpc import CircuitMPC
-    from src.operating_point import controller_settings
-    m = nb31()
-    net_estimate, ridge_estimate = load_estimators()
-    t0 = time.time()
     rc, plant, plant_k = plant_for(seed)
     model = build_circuit(rc)
-    names = list(plant.p.names)
     u0 = nominal_inputs(rc, plant).replace(k_factor=plant_k)
     x_rest, u_design = commission(plant, u0)
     rng = np.random.default_rng(seed + 5000)                   # notebook 31's noise draw for this plant
-    y_true = m.readings(plant, x_rest, u_design, names)
+    y_true = m.readings(plant, x_rest, u_design, list(plant.p.names))
     sd = m.noise_sd(y_true)
     y = y_true + rng.normal(0.0, sd)
-    h = handles_of(u_design, u0)
-    truth = true_log_betas(plant, model)
-    t1 = time.perf_counter()
-    est_net = net_estimate(y, h)
-    net_ms = 1000 * (time.perf_counter() - t1)
-    est_ridge = ridge_estimate(y, h)
+    return TestPlant(rc, plant, plant_k, model, x_rest, u_design, y, sd, handles_of(u_design, u0),
+                     true_log_betas(plant, model))
 
-    # the net proposes, the physics checks: least squares from the net's answer (k starts at 1)
-    u_model = u_design.replace(k_factor=np.ones(plant.N))
-    state = {"x": plant.observable(x_rest), "evals": 0}
+
+def estimates(case, estimators):
+    """Both estimators on the plant's readings: (net's log factors, ridge's, the net's time in ms)."""
+    net_estimate, ridge_estimate = estimators
+    t1 = time.perf_counter()
+    est_net = net_estimate(case.y, case.h)
+    net_ms = 1000 * (time.perf_counter() - t1)
+    return est_net, ridge_estimate(case.y, case.h), net_ms
+
+
+def polish_fit(m, case, est_net):
+    """The net proposes, the physics checks: least squares from the net's answer (k starts at 1).
+    Returns (the fit, steady-state solves, seconds)."""
+    from scipy.optimize import least_squares
+    u_model = case.u_design.replace(k_factor=np.ones(case.plant.N))
+    names = list(case.plant.p.names)
+    state = {"x": case.plant.observable(case.x_rest), "evals": 0}
 
     def residuals(theta):
-        mod, _, _ = m.model_with(rc, theta)
+        """Noise-scaled reading errors of the model with these numbers (warm-started steady state)."""
+        mod, _, _ = m.model_with(case.rc, theta)
         x = steady_state(mod, u_model, x0=state["x"])
         state["x"], state["evals"] = x, state["evals"] + 1
-        return (m.readings(mod, x, u_model, names) - y) / sd
+        return (m.readings(mod, x, u_model, names) - case.y) / case.sd
 
     t2 = time.time()
     polish = least_squares(residuals, np.clip([est_net[0], est_net[1], 0.0], -0.49, 0.49), bounds=(-0.5, 0.5),
                            diff_step=0.02, max_nfev=60)
-    polish_s = time.time() - t2
+    return polish, state["evals"], time.time() - t2
 
-    b_true = np.exp(truth)
+
+def estimate_row(seed, case, fits, timing):
+    """The plant's row of factors. fits: (net, ridge, polished); timing: (net ms, polish solves, seconds)."""
+    est_net, est_ridge, polish = fits
+    net_ms, evals, polish_s = timing
+    b_true = np.exp(case.truth)
+    names = list(case.plant.p.names)
     row = {"seed": seed, "group": "main" if MAIN else ("hard" if seed in HARD else "easy")}
-    K = np.asarray(model.p.K, float)
+    K = np.asarray(case.model.p.K, float)
     la, pr, nd = names.index("LaCe"), names.index("Pr"), names.index("Nd")
     base = np.array([K[pr] / K[la], K[nd] / K[pr]])
     row.update({"beta_pr_lace_true": base[0] * b_true[0], "beta_nd_pr_true": base[1] * b_true[1],
                 "beta_pr_lace_net": base[0] * np.exp(est_net[0]), "beta_nd_pr_net": base[1] * np.exp(est_net[1]),
                 "beta_pr_lace_ridge": base[0] * np.exp(est_ridge[0]), "beta_nd_pr_ridge": base[1] * np.exp(est_ridge[1]),
                 "beta_pr_lace_polished": base[0] * np.exp(polish.x[0]), "beta_nd_pr_polished": base[1] * np.exp(polish.x[1]),
-                "net_ms": round(net_ms, 3), "polish_evals": state["evals"], "polish_seconds": round(polish_s)})
+                "net_ms": round(net_ms, 3), "polish_evals": evals, "polish_seconds": round(polish_s)})
+    return row
 
+
+def net_controller(rc, mod, x_model, u_model):
+    """The MPC on the net's model: over level loops on the main case, with the acidity floor otherwise."""
+    if MAIN:
+        from src.registry import mpc_over_level_loops
+        return mpc_over_level_loops(rc, mod, x_model, u_model)
+    from src.mpc import CircuitMPC
+    from src.operating_point import controller_settings
+    return CircuitMPC(mod, x_model, u_model, rc.cut, rc.targets()[0], rc.design_purity, rc.targets()[1],
+                      controller_settings(rc, acid_floor=1e-3))
+
+
+def closed_loop_row(m, case, est_net):
+    """The MPC on the net's model runs the plant HOURS h: end and at-rest purity and recovery, failures."""
+    from src.loop import run_closed_loop
+    u_model = case.u_design.replace(k_factor=np.ones(case.plant.N))
+    mod, _, _ = m.model_with(case.rc, [est_net[0], est_net[1], 0.0])
+    x_model = steady_state(mod, u_model, x0=case.plant.observable(case.x_rest))
+    traj, log = run_closed_loop(case.plant, case.x_rest, net_controller(case.rc, mod, x_model, u_model), None, HOURS,
+                                plant_k_factor=case.plant_k)
+    return end_and_rest(case, traj, log)
+
+
+def end_and_rest(case, traj, log):
+    """Purity and recovery at the end of the run and where the final handles settle, and QP failures."""
+    from src.metrics import heavy_mask, product_purity
+    plant, rc = case.plant, case.rc
+    heavy = np.array(heavy_mask(plant.p, rc.cut))
+    fed = float(case.u_design.Q_feed) * np.asarray(case.u_design.c_feed, float)[heavy].sum()
+    o = plant.outlets(traj.x[-1], traj.u[-1])
+    cp = np.atleast_1d(o["c_prod"])
+    x_rest_end = steady_state(plant, traj.u[-1], x0=traj.x[-1], t_settle=500.0)   # where the final handles settle
+    o_r = plant.outlets(x_rest_end, traj.u[-1])
+    cp_r = np.atleast_1d(o_r["c_prod"])
+    return {"rest_purity": product_purity(cp_r, plant.p, rc.cut),
+            "rest_recovery": float(o_r["Q_prod"]) * cp_r[heavy].sum() / fed,
+            "purity_end": product_purity(cp, plant.p, rc.cut), "recovery_end": float(o["Q_prod"]) * cp[heavy].sum() / fed,
+            "solver_failures": int(sum(1 for r in log if r.get("qp_ok") is False))}
+
+
+def test_one(seed):
+    """One of notebook 31's plants: the same noisy readings, both estimators, the net's answer as
+    the least-squares starting point, and (hard plants) the MPC on the net's model for 120 h."""
+    m = nb31()
+    estimators = load_estimators()
+    t0 = time.time()
+    case = test_plant(m, seed)
+    est_net, est_ridge, net_ms = estimates(case, estimators)
+    polish, evals, polish_s = polish_fit(m, case, est_net)
+    row = estimate_row(seed, case, (est_net, est_ridge, polish), (net_ms, evals, polish_s))
     if seed in HARD:
-        mod, _, _ = m.model_with(rc, [est_net[0], est_net[1], 0.0])
-        x_model = steady_state(mod, u_model, x0=plant.observable(x_rest))
-        if MAIN:
-            from src.registry import mpc_over_level_loops
-            ctl = mpc_over_level_loops(rc, mod, x_model, u_model)
-        else:
-            ctl = CircuitMPC(mod, x_model, u_model, rc.cut, rc.targets()[0], rc.design_purity, rc.targets()[1],
-                             controller_settings(rc, acid_floor=1e-3))
-        traj, log = run_closed_loop(plant, x_rest, ctl, None, HOURS, plant_k_factor=plant_k)
-        heavy = np.array(heavy_mask(plant.p, rc.cut))
-        fed = float(u_design.Q_feed) * np.asarray(u_design.c_feed, float)[heavy].sum()
-        o = plant.outlets(traj.x[-1], traj.u[-1])
-        cp = np.atleast_1d(o["c_prod"])
-        x_rest_end = steady_state(plant, traj.u[-1], x0=traj.x[-1], t_settle=500.0)   # where the final handles settle
-        o_r = plant.outlets(x_rest_end, traj.u[-1])
-        cp_r = np.atleast_1d(o_r["c_prod"])
-        row.update({"rest_purity": product_purity(cp_r, plant.p, rc.cut),
-                    "rest_recovery": float(o_r["Q_prod"]) * cp_r[heavy].sum() / fed})
-        row.update({"purity_end": product_purity(cp, plant.p, rc.cut), "recovery_end": float(o["Q_prod"]) * cp[heavy].sum() / fed,
-                    "solver_failures": int(sum(1 for r in log if r.get("qp_ok") is False))})
+        row.update(closed_loop_row(m, case, est_net))
     row["seconds"] = round(time.time() - t0)
     return row
 
@@ -351,17 +473,23 @@ def _test_seeds():
 
 
 def test():
+    """Every test plant in parallel; one row per plant to the results file as each finishes."""
     with open(OUT, "w", newline="") as f:
         csv.DictWriter(f, fieldnames=FIELDS).writeheader()
     with Pool(WORKERS) as pool:
         for row in pool.imap_unordered(test_one, _test_seeds()):
-            with open(OUT, "a", newline="") as f:
-                csv.DictWriter(f, fieldnames=FIELDS).writerow(row)
-            print(f"seed {row['seed']:2d} ({row['group']}): Pr/LaCe true {row['beta_pr_lace_true']:.3f} net "
-                  f"{row['beta_pr_lace_net']:.3f} ridge {row['beta_pr_lace_ridge']:.3f} polished {row['beta_pr_lace_polished']:.3f} "
-                  f"({row['polish_evals']} evals) | net {row['net_ms']} ms"
-                  + (f" | end {100 * row['purity_end']:.2f}/{100 * row['recovery_end']:.2f} %" if "purity_end" in row else ""),
-                  flush=True)
+            write_test_row(row)
+
+
+def write_test_row(row):
+    """Append one test plant's row to the results file and print it."""
+    with open(OUT, "a", newline="") as f:
+        csv.DictWriter(f, fieldnames=FIELDS).writerow(row)
+    print(f"seed {row['seed']:2d} ({row['group']}): Pr/LaCe true {row['beta_pr_lace_true']:.3f} net "
+          f"{row['beta_pr_lace_net']:.3f} ridge {row['beta_pr_lace_ridge']:.3f} polished {row['beta_pr_lace_polished']:.3f} "
+          f"({row['polish_evals']} evals) | net {row['net_ms']} ms"
+          + (f" | end {100 * row['purity_end']:.2f}/{100 * row['recovery_end']:.2f} %" if "purity_end" in row else ""),
+          flush=True)
 
 
 if __name__ == "__main__":

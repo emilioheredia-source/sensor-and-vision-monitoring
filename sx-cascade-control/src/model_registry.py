@@ -121,7 +121,10 @@ class ModelRegistry:
         self._review(vid, "rejected", reviewer, note, t)
 
     def _review(self, vid: int, status: str, reviewer: str, note: str, t: float | None):
-        """Set a version's status, reviewer and note, and journal it."""
+        """Set a version's status, reviewer and note, and journal it.
+
+        Why five parameters: they're the fields of one journal entry.
+        """
         v = self.versions[vid]
         v.status, v.reviewer, v.note = status, reviewer, note
         self._log(t if t is not None else v.t, f"version {vid} {status} by {reviewer}: {note}")

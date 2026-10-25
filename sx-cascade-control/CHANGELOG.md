@@ -1,5 +1,46 @@
 # Changelog
 
+## v1.3 (2026-10-25): two blind spots in the controller, and their fixes
+
+New:
+- The controller refits the model's three uncertain numbers (the two separation factors and the
+  acid exponent) every 2 hours on the last 2 hours of readings and rebuilds itself on the new model
+  (notebook 51). On the plant where a slightly wrong model ran the acid out, the first refit had the
+  numbers right; on all ten test plants it removes what a wrong model adds (notebook 53).
+- The saponification is capped by the plant's acid balance, from what the plant shows (notebook
+  52). On all ten plants, with every model tried, the extraction acid doesn't go under its floor, at
+  no cost in time below spec (notebooks 53, 56). It governs the acid at the outlet: aiming 3 mmol/L
+  above the floor kept two of three plants clear of it, not the third (notebook 57).
+- A rest-point check in the MPC (MPCSettings.rest_check_every; off by default, so earlier results
+  are unchanged; ARCHITECTURE decision 42): every 12 hours the model is solved to rest on the current
+  handles and the long-run floors are set there (notebook 55). On the two plants that drifted toward
+  off spec while reading 100 % purity, it holds them at 99.97 to 99.99 %.
+- The slow drift measured over 600 hours, with recovery counted by losses and the metal stock
+  (notebook 54).
+- All three together, from a wrong model, over 600 hours (notebook 56): no stall, no drift, no acid
+  under the floor on any of the ten plants, and the same or fewer hours below spec; without them the
+  same wrong model drifts toward off spec on 7 plants, runs the acid out on 5 and stalls one.
+- Five more ideas, each tested on its own (FINDINGS phase 10): the rest-point check every step
+  instead of every 12 h, no better on the drift at twice the run time (notebook 58); the circuit's
+  NdPr stock as a drift alarm, a cross-check that also fires when the stock only shifts (notebook 59);
+  the controller holding recovery counted by losses, no better (notebook 60); a penalty that starts
+  3 mmol/L before the acid floor, which keeps the true model off the floor on all ten plants but not a
+  wrong model (notebook 62); the purity output in log impurity, which halves the drift but doesn't stop
+  it (notebook 61). Three new MPC settings for them, all off by default (ARCHITECTURE decision 43).
+- Correcting the model at its inputs instead of its outputs, screened on this plant's gains before
+  building it (notebook 63): about ten times better with an accurate model, unstable on most plants
+  with the model's real errors. Not built.
+- LITERATURE.md: what this project takes from the literature, and where.
+- A readability pass over the code and the notebooks: every function documented, long functions
+  split into named helpers, and the few functions that keep more than four parameters say why.
+  Checked against the reference runs to the last bit and, for each reworked notebook, against its
+  stored results.
+- The README's numbers and FINDINGS phase 10 checked against the result tables.
+
+No earlier result changed. Found while checking: the operating window table from notebook 19
+can't be reproduced as committed; the conclusion holds (details in CHANGES_TO_EARLIER_RESULTS.md,
+item 4).
+
 ## v1.2 (2026-10-25): choosing what to fit, and testing whether it matters
 
 New:

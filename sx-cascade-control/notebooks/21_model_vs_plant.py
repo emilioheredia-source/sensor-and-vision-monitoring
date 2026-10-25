@@ -98,6 +98,7 @@ def run(seed: int, which: str) -> dict:
     c_feed = np.asarray(u_design.c_feed, float)
 
     def pur_rec(x, uv):
+        """The plant's product purity and recovery (fractions) at state x, inputs uv; recovery against the design feed."""
         o = plant.outlets(x, uv)
         cp = np.atleast_1d(o["c_prod"])
         fed = float(u_design.Q_feed) * c_feed[heavy].sum()

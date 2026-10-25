@@ -22,6 +22,11 @@ printed pages).
    the profile is steep, 5-15 stages from the outlets), trimming organic and scrub. That's the
    same thing our steady-state analysis found.
 
+The phases after the Sources add to this, in the order the work was done: the design (phase 2),
+identify-then-control (3 and 4), toward a plant (5), the reruns on the main case (6), questions
+from a review session (7), which numbers to fit (8), whether the estimate matters (9), and the
+controller's two blind spots and their fixes (10).
+
 ## 1. Why the window is narrow: purity goes as a power of the flow ratio
 
 In a section where one element is being purified, the amount of impurity drops by the same
@@ -42,6 +47,13 @@ where S is the metal carried by the organic and W the metal carried back by the 
 
 That's the mechanism behind the narrow band we found (notebook 19: 1.8 L/h of scrub at 28
 stages, a few percent at 44). It isn't a modelling artefact.
+
+    Note (Oct 25): notebook 19's table can't be reproduced as committed. Its steady states stop at
+    250 simulated hours before they've fully settled, so the answer depends on where each solve
+    starts; rerun as committed, the purity search finds no crossing and writes NaN. With the
+    search kept below the scrub flow where the product collapses, the window at the design point
+    comes out 0.6 L/h instead of 1.8 L/h. Either way it's well under 1 % of the scrub flow, so the
+    point stands. Not rerun settled for v1.3; see CHANGES_TO_EARLIER_RESULTS.md.
 
 ## 2. Why our design sat on the edge
 
@@ -856,3 +868,272 @@ before anything is said about it.
     99.64-99.66 % at worst and recovery about 97.5 % for every one, down to 82 weights and the ridge
     (one ridge run, plant 10, failed as in Test 5). Accuracy separates the sizes; control on these
     plants doesn't. GPU timing not run: the installed PyTorch is a CPU build.
+
+## Phase 10 (2026-10-24): the controller learning the plant's numbers while it runs (notebook 51)
+
+  - The question. On plant 10 with the ridge's estimate the MPC over-saponified and the plant
+    simulation stalled (phase 9). What was it blind to, and does refitting the corrected set
+    (both separation factors and the acid exponent) on the running plant fix it? One change per
+    run, everything else as in phase 9: output bias, soft acid floor, purity as a fraction.
+    Plant 10 of notebook 45 (perturbed physics), at rest on the design handles, MPC over level
+    loops, full state, 48 h. "Online" starts on the ridge's estimate and every 2 h fits the three
+    numbers to the twelve readings of the last 2 h (the model run from the plant's state at the
+    window's start under the inputs the plant got, implicit Euler), then rebuilds the controller
+    on the new model: its state the model's own at the window's end, its bias matched there.
+    (runs/online_refit_ndpr_main.csv and .npz)
+                                   stalled   max sapon.  min scrub acid  lowest acid ext./scrub  h below spec  end purity / recovery
+      ridge                        14.5 h    0.568       1.05 mol/L      0.00 / 0.00 mmol/L      all           92.68 % / 172.9 %
+      true model                   no        0.507       0.45            0.62 / 15.2             19.0          99.88 % / 97.16 %
+      fit at rest (three numbers)  no        0.506       0.48            0.38 / 14.1             18.0          99.89 % / 97.20 %
+      online, from the ridge       no        0.506       0.52            0.73 / 13.6             18.5          99.90 % / 96.94 %
+      ridge factors + fitted acid  no        0.508       0.53            0.43 / 12.9             18.0          99.90 % / 97.15 %
+      fitted factors + nominal acid no       0.528       0.54            0.00 / 3.4              21.5          99.91 % / 97.09 %
+  - What the controller was blind to: the acid exponent. Plant 10's is 3.3 against the model's
+    3.0; the ridge estimates only the two separation factors, so its model carried 3.0. The fit
+    at rest found +0.323; the online fits ranged +0.22 to +0.41 over the run (last +0.377). The
+    two swaps separate the causes: the ridge's factors (Pr/(La+Ce) +0.023 in log, about 2 %
+    optimistic) with the fitted acid exponent behave like the true model; the fitted factors with
+    the nominal acid exponent still run the extraction acid to zero (no stall in 48 h). The wrong
+    acid response is the main cause; the small factor error on top of it is what stalled the plant.
+  - Online learning works from the first refit. At 2 h: Pr/(La+Ce) -0.123 and Nd/Pr +0.077 in
+    log against the plant's -0.119 and +0.077, acid +0.384. From then on the online controller's
+    handles follow the true model's (saponification 0.468 at 4 h in both, where the ridge's went
+    on to 0.508 and ran the extraction acid out at 5 h). Over 24 refits the factors stayed within
+    -0.133 to -0.110 and +0.068 to +0.083. About 4 to 5 minutes of computing for the 48 h run
+    (287 s and 228 s in two runs, timing depends on what else the PC is doing).
+  - Not solved by this: even the true model takes the extraction acid down to 0.6 mmol/L, below
+    the 1 mmol/L soft floor (the fit at rest 0.38, online 0.73). Keeping the planned steady state
+    off that limit is a separate change, tested on its own next. One plant so far; the refit
+    starts each window from the plant's full state, which a real plant would have to estimate.
+  - The saponification tied to the acid balance (Oct 24, notebook 52). One change on top of the
+    runs above: after every interval the saponification's upper bound is set from the balance over
+    the extraction and scrub sections, s_max = (3 x metal in the loaded organic + feed acid + scrub
+    acid - acid floor x raffinate flow) / (extractant x organic flow), all from what the plant
+    shows (the loaded organic as an assay would read it, the acids and flows as metered), never
+    asking for a faster cut than the rate limit. The balance uses no fitted number; at plant 10's
+    rest point it closes exactly (699.7 mol/h of base either way) and allows 0.44.
+    (runs/saponification_balance_ndpr_main.csv and .npz)
+                                   stalled   max sapon.  lowest acid ext./scrub  h below spec  end purity / recovery  base, mol/h
+      ridge + balance              no        0.475       13.6 / 33.2 mmol/L      17.5          99.91 % / 97.21 %      902
+      true model + balance         no        0.475       13.8 / 25.6             18.5          99.88 % / 97.17 %      799
+      online + balance             no        0.465       15.4 / 27.4             19.5          99.90 % / 96.95 %      810
+    (without the balance: ridge stalled at 14.5 h with the acid at zero; true model 0.6 / 15.2
+    mmol/L, 19.0 h, base 817; online 0.7 / 13.6 mmol/L, 18.5 h, base 848.)
+    The balance alone stops the runaway on the wrong model: no stall, the extraction acid never
+    below 13 mmol/L, and the product on spec as soon as with the true model. It also keeps the
+    true model's extraction acid at 13.8 mmol/L instead of 0.6, which was the open margin problem
+    above, at no cost in time below spec and slightly less base. The cap binds on 12 to 23 % of
+    the steps. The wrong model still costs reagent (902 mol/h of base against 817), the lopsided
+    cost of an optimistic model (phase 9), but no longer the plant. One plant so far; the balance
+    assumes the loaded organic's metal is known (an assay, or XRF on the organic).
+  - Both fixes on all ten fair-test plants (Oct 24, notebook 53). Notebook 51's 48 h run on plants
+    1 to 10 of notebook 45, six controllers each: the ridge's model, the online refit, the true
+    model, and each of them with notebook 52's balance cap. (runs/ten_plants_v13_ndpr_main.csv and
+    .npz; plant 10's six rows reproduce notebooks 51 and 52 exactly.)
+                       extraction acid under 1 mmol/L   stalled  max sapon.  h below spec (mean)  worst end purity  base, mol/h (mean, 9 plants)
+      ridge            5 of 10 (to 0.00)                1        0.568       10.7                 92.68 %           769
+      ridge + balance  0 of 10 (lowest 13.42 mmol/L)    0        0.475       10.4                 99.62 %           796
+      online           4 of 10 (lowest 0.00)            0        0.508       10.5                 99.90 %           784
+      online + balance 0 of 10 (lowest 13.70)           0        0.473       10.6                 99.90 %           774
+      true model       5 of 10 (lowest 0.14)            0        0.508       10.2                 99.88 %           778
+      true + balance   0 of 10 (lowest 13.16)           0        0.475       10.1                 99.88 %           767
+    (base: the mean over the nine plants where no run stalled, plant 10 left out of every row.)
+    What each change does. The online refit removes what the wrong model adds: no stall, and the
+    controller behaves like the true model's. But the true model itself runs the extraction acid
+    under the 1 mmol/L floor on 5 of 10 plants (2, 3, 6, 9, 10), so a right model isn't enough to
+    keep the margin; the soft floor loses the trade against purity. The balance cap keeps every
+    plant above 13 mmol/L with every model, at no cost in time below spec (10.1 to 10.7 h on
+    average either way) and about the same base. Where the cap never binds the run is identical
+    to the one without it (plant 5, for instance; its 99.62 % with the ridge is the ridge model's,
+    with or without the cap). Both together: no stall, no plant under the floor, purity as with
+    the true model.
+  - The slow drift near 100 % measured on all ten plants (Oct 24, notebook 54). True model (the
+    drift isn't a model error), no upset, 600 h from rest on the design handles. Logged besides
+    the readings: recovery counted by what's lost (1 - NdPr in the raffinate / NdPr fed), the NdPr
+    stock change (the running integral of fed - product - raffinate), and every 24 h the purity the
+    plant would settle at on the handles held then. (runs/slow_drift_ndpr_main.csv and .npz)
+                  purity read     recovery read     recovery by     NdPr stock    settled purity
+                  end / min>24h   end / max         losses, end     change, mol   min / end
+      plant 7     99.99 / 99.99   99.16 / 104.11    97.70           -890          94.65 / 98.68
+      plant 8     99.99 / 99.99   99.01 / 104.19    97.49           -924          94.39 / 98.62
+      the other   99.80-99.94 /   97.00-98.00 /     96.93-97.77     -17 to -138   end 99.77-99.86
+      eight       99.27-99.94     97.25-98.38
+    Two plants of ten drift. On plants 7 and 8 the purity reads 99.99 % from start to end, while
+    the purity they'd settle at slides from 100 % to about 94.7 % by 336 h (below spec from 120 h)
+    and is still under spec at 600 h (98.6-98.7 %). The recovery reading rises to 104 % and the
+    stock drains by about 900 mol: the product is coming out of the circuit's inventory, not from
+    the feed. Recovery counted by losses stays at 97.5-97.7 %, the honest number. On the other eight
+    the settled purity is below spec only at start-up (plants that begin below spec at the design
+    handles, back above it by 72 to 120 h) and ends at 99.8 %. The signals that show the drift
+    while the purity reading can't: the settled purity, the stock change, and a recovery reading
+    above 100 % (or the gap between it and recovery by losses). Notebook 55 tests the first as a fix.
+  - The rest-point check against the drift (Oct 24, notebook 55). One change on notebook 54's runs:
+    MPCSettings.rest_check_every = 24 (new in src/mpc.py, off by default; with it off the reference
+    runs are bit-exact). Every 12 h the controller solves its own model to rest on the handles held
+    now, linearizes there, and anchors its steady-state floors on that rest point and its long-run
+    gains, instead of on the flat linear view at the model state. (runs/rest_point_check_ndpr_main.csv
+    and .npz)
+                  settled purity min     recovery read max     recovery by losses, end   stock change, mol
+                  before    with check   before    with check  before    with check      before  with check
+      plant 7     94.65     99.99        104.11    98.91       97.70     97.34           -890    -266
+      plant 8     94.39     99.97        104.19    98.82       97.49     97.07           -924    -289
+    The drift is gone: plants 7 and 8 now settle at 99.97-99.99 % instead of sliding to about 94.5 %,
+    the recovery reading stays under 100 %, and the stock drains a third as much. The price is about
+    0.4 points of real recovery on those two plants (by losses), the trade the controller makes to
+    keep the purity it will settle at. On all ten plants the hours below spec are the same to the
+    half hour (10.2 h on average either way) and the reagent nearly so (base 865 against 867 mol/h,
+    scrub acid 447 against 453 mol/h on average). On plants 2 and 4 the settled purity at 24 h, during
+    start-up, is lower with the check (95.96 against 98.76 %, 97.09 against 99.99 %), but the purity
+    read and the hours below spec are the same, and both reach their final settled purity sooner
+    (plant 2: 99.70 % at 48 h against 99.05 %). End settled purity on the other eight: 99.78-99.87 %.
+  - All three fixes together, from the ridge's wrong model, over 600 h (Oct 24, notebook 56).
+    Notebook 54's long run on the ten plants, two controllers: the ridge's model with no fix, and
+    the ridge's model refitted every 2 h with the balance cap and the rest-point check every 12 h.
+    (runs/all_fixes_ndpr_main.csv and .npz; the first run stopped on a summary bug after 11 of 20
+    runs, a stalled run having no rest-point checks; fixed, and the other 9 run on, the 11 kept.)
+                                             ridge, no fix          all three fixes
+      plants stalled                         1 (plant 10, 14.5 h)   0
+      settled purity under spec after 120 h  7 of 10 plants         0 (lowest 99.18 %)
+      extraction acid under 1 mmol/L         5 plants (to 0.00)     0 (lowest 1.00 mmol/L)
+      recovery read, highest                 178.71 %               99.04 %
+      hours below spec (mean)                10.3 (9 plants)        10.3 (10 plants)
+    With the wrong model and no fix the drift is far wider than with the true model (notebook 54:
+    2 of 10): 7 plants head below spec while reading 99.2-99.8 %, plant 6 down to 70.67 % settled
+    with a recovery reading of 178.71 %. With the three fixes nothing fights: no stall, no drift,
+    no acid under the floor, and the same or fewer hours below spec on every plant (plant 3: 18.5
+    against 22.5; plant 9: 18.0 against 21.0). One thing the 48 h tests didn't show: over 600 h the
+    controller uses all the base the balance allows, so on plants 3, 9 and 10 the extraction acid
+    comes down to the floor itself (1.00-1.04 mmol/L, around 400 h), never under it. The cap holds
+    the raffinate at the floor, not above it; a margin above the floor means setting the balance's
+    raffinate acid above the floor (a back-off, Kuntz and Rawlings), a choice still to make. The
+    settled purity is under spec only at the 96 h check on plants 2 and 10 (98.21, 98.69 %, the
+    end of start-up), and above 99.18 % on every plant from 120 h on.
+  - A margin above the acid floor in the balance (Oct 25, notebook 57). One change on notebook 56's
+    combined run, on the three plants where the cap held the acid at the floor: the balance aims
+    the raffinate 3 mmol/L above the floor instead of at it (notebook 52's RAFFINATE_MARGIN).
+    (runs/acid_margin_ndpr_main.csv and .npz)
+                  lowest extraction acid, mmol/L   h below spec   recovery by losses, end
+                  at the floor   with the margin   before  with   before   with
+      plant 3     1.03           3.13              18.5    18.5   97.40    97.44
+      plant 9     1.04           2.77              18.0    19.0   97.65    97.63
+      plant 10    1.00           0.99              19.0    19.0   97.42    97.44
+    On plants 3 and 9 the margin keeps the lowest stage 2 to 3 mmol/L clear of the floor at no cost
+    in recovery or reagent (base within 0.3 %). On plant 10 it doesn't: the saponification sits on
+    the cap (0.4959 against 0.4961) and the lowest extraction stage still comes down to the floor
+    (0.99 mmol/L, from about 260 h on). The balance sets the acid leaving in the raffinate; on plant
+    10 a stage inside the extraction section runs lower than the outlet, and 3 mmol/L more in about
+    800 L/h of raffinate moves the cap by only about 0.0014. A margin on the outlet isn't a margin
+    on every stage; holding every stage needs the stage acid itself (pH readings in the estimator,
+    or the acid floor as a hard limit on every extraction and scrub stage).
+  - The NdPr stock as a drift signal (Oct 25, notebook 59; analysis of the runs above, nothing
+    rerun). The stock change is a running sum of fed - product - raffinate, measured flows and
+    assays, no model. Rule: alarm when the stock has drained faster than 0.5 mol/h over the last
+    48 h for 24 h in a row, ignoring the first 96 h (every plant drains while it settles from the
+    design handles; after that the quiet plants stay under 0.35 mol/h). So the earliest alarm is at
+    120 h. (runs/stock_signal_ndpr_main.csv)
+                                    alarm on       settled purity under spec after 96 h on
+      true model (notebook 54)      plants 7, 8    plants 7, 8 (both from 120 h)
+      rest-point check (55)         plants 7, 8    none
+      ridge, no fix (56)            1, 4, 6-9      1, 3, 4, 6-9
+    With the true model the alarm comes at 120 h on both drifting plants, the same check at which
+    the settled purity first shows below spec, and before the recovery reading passes 100 % (125
+    and 139 h). With the ridge's model it flags 6 of the 7 plants that drift (plant 3 missed), at
+    120 h where the settled purity crossed at 96 h (plant 4: 371 h against 336 h), and nothing that
+    didn't drift. With the rest-point check on, plants 7 and 8 still drain (266 and 289 mol over
+    600 h) and the alarm fires though their settled purity stays at 99.97-99.99 %: a draining stock
+    says the inventory is moving, not that the product is at risk. So the stock is a model-free
+    cross-check worth showing an operator, and slower than the rest-point check by the start-up it
+    has to ignore; not a replacement for it. The recovery reading over 100 % is no use early: with
+    the ridge's model it crosses within 9.5 to 28 h, during start-up, on most plants.
+  - The rest-point check every step instead of every 12 h (Oct 25, notebook 58). One change on
+    notebook 55's runs: a check every 0.5 h step (1,200 checks in 600 h instead of 50).
+    (runs/rest_check_every_step_ndpr_main.csv and .npz)
+                  settled purity, lowest from 120 h   h below spec     run time, s
+                  every 12 h    every step           12 h   step       12 h   step
+      plant 3     99.49         99.67                18.0   17.5       612    1,433
+      plant 10    99.24         99.57                19.0   18.5       614    1,558
+      plants 7, 8 99.97-99.99   99.98                0      0          577-580 1,216-1,358
+    It catches the drift no better (plants 7 and 8 settle at 99.98 % either way, recovery by losses
+    the same to 0.02 points on every plant), and on the two plants still settling from a low start
+    it keeps the settled purity a little higher. On the other six it changes nothing that matters.
+    The cost is the run time: 1,184 to 1,629 s per plant against 577 to 614 s, roughly 0.5 to 0.9 s
+    per check (an upper figure: notebook 60 ran on the same computer for part of the time). Every
+    12 h is enough for the drift; every step is affordable inside a 30-minute control interval.
+  - The controller holding recovery counted by losses (Oct 25, notebook 60). One change on notebook
+    54's runs (true model, 600 h, no upset): MPCSettings.recovery_from_losses = True (new in
+    src/mpc.py, off by default; with it off the reference runs are bit-exact), so the recovery the
+    controller holds at 97 % is 1 - NdPr in the raffinate / NdPr fed instead of product over feed.
+    (runs/loss_recovery_ndpr_main.csv and .npz)
+    On the two plants that drift (7, 8) it changes nothing: the runs are identical, still heading
+    for 94.39-94.65 % with the recovery reading at 104 %. Their recovery floor never binds under
+    either definition; the drift is on the purity side, which is what the rest-point check fixes.
+    On the other eight it lets the circuit fill up with metal: the stock change at 600 h goes from
+    -138 to -17 mol to -83 to +1,219 mol (it grows on 7 of the 8), recovery by losses ends at
+    97.00-98.70 % instead of 96.93-97.77 %, and on six of them the run uses 13.6 to 42.7 % more base
+    (plants 1 and 5: 0.1 and 2.1 %). Hours below spec: 1 to 2 h more on five plants, 1 h less on
+    plant 4, the same on two. So it's no better as the controlled variable. The two definitions
+    agree at rest and differ only while the stock moves: product over feed counts metal drained from
+    the stock as recovered, losses count metal piling up in the circuit as recovered, and neither
+    sees the stock. Recovery by losses is the honest number to show an operator, next to the stock
+    (notebook 59); the controller keeps product over feed by default.
+  - A penalty that starts before the acid floor (Oct 25, notebook 62, Emilio's suggestion). One
+    change on notebook 53's 48 h runs: MPCSettings.acid_band = 3 mmol/L (new in src/mpc.py, off by
+    default; with it off the reference runs are bit-exact), a second soft acid floor 3 mmol/L above
+    the first with the same weight, so the cost starts at 4 mmol/L and grows twice as fast below 1.
+    (runs/acid_band_ndpr_main.csv and .npz)
+                       extraction acid under 1 mmol/L   stalled   h below spec (mean)
+      true model       5 of 10 (lowest 0.14)            0         10.2
+      true + band      0 of 10 (lowest 2.07)            0         10.2
+      true + balance   0 of 10 (lowest 13.16)           0         10.1
+      ridge            5 of 10 (lowest 0.00)            1         10.3 (9 plants)
+      ridge + band     5 of 10 (lowest 0.00)            0         11.1
+      ridge + balance  0 of 10 (lowest 13.42)           0         10.4
+    With the right model the band does what was hoped: the acid stays off the floor on every plant
+    (2.07 to 3.69 mmol/L on the five that went under), at no cost in time below spec or base. With
+    the ridge's model it doesn't: the same five plants still run the extraction acid to zero, because
+    the model has the acid's response wrong and predicts acid that isn't there; a penalty on the
+    predicted acid can't see it (the band did keep plant 10 from stalling). The balance cap holds
+    with either model because it counts metal and acid instead of trusting the model. So the two
+    answer different things: the band keeps a right model off the limit, the cap protects against a
+    wrong one.
+  - The purity output and floors in log impurity (Oct 25, notebook 61). One change on notebook 54's
+    runs (true model, 600 h, no upset): MPCSettings.log_impurity = True (new in src/mpc.py, off by
+    default; with it off the reference runs are bit-exact). The purity the controller sees and its
+    floors are in nines, -log10(1 - purity); each floor's slack is scaled by the slope there, so a
+    thousandth of purity below a floor costs what it did. (runs/log_impurity_ndpr_main.csv and .npz)
+                  settled purity, lowest from 120 h         recovery read, highest   NdPr stock change, mol
+                  fraction   log impurity   rest check      fraction   log           fraction   log
+      plant 7     94.65      98.17          99.99           104.11     100.22        -890       -442
+      plant 8     94.39      97.94          99.97           104.19     100.35        -924       -482
+    It helps but doesn't stop the drift: plants 7 and 8 still head below spec, to about 98 % instead
+    of about 94.5 %, and the stock drains half as much. Log impurity makes the last nines visible in
+    the controller's straight-line view, but that view is still taken where the model is now; the
+    rest-point check looks where the plant is heading, which is why it holds them at 99.97-99.99 %.
+    On the other eight plants little changes: hours below spec within 1 h either way, base the same
+    except plant 4 (+4.5 %). Not tried: log impurity with the rest-point check together.
+  - Correcting the model at its inputs instead of its outputs: a screen (Oct 25, notebook 63). The
+    MPC adds a filtered gap to its predicted outputs. Pannocchia and Rawlings (TWMCC 2001) found a
+    correction at the inputs more robust on an ill-conditioned plant with gain errors. Before
+    building it, their kind of experiment on this plant's numbers: notebook 24's settled 2x2
+    long-run gains for each of 19 plants and for the model at the plant's design point, each a
+    first-order system (time constant 100 h, 0.5 h steps, 600 h), a controller that plans with the
+    model's gains and moves a tenth of the way to its target handles each step, and the two
+    corrections, each at its best filter. Linear, no floors or constraints: a screen. Decision
+    rule set before running: build it only if it's clearly better on most plants.
+    (runs/input_correction_screen_ndpr_main.csv, runs/input_correction_error_sizes_ndpr_main.csv)
+    With the model's real gains (3 to 28 times off in the weak direction, section 4) the input
+    correction is worse on every case: better on 0, 1 and 0 of 19 plants (target change, input
+    offset, output step) and unbounded on 3 to 5 plants at its best filter, where the output bias
+    stays bounded on all 19. Against models of known accuracy (the plant's gains each times a
+    random factor), input-offset case:
+                                     output bias                    input correction
+      gains off by up to             median error  unbounded        median error  unbounded
+        0 %                          460.69        0 of 19          40.93         0 of 19
+       10 %                          451.16        1                45.66         2
+       30 %                          455.59        1                103.36        4
+       50 %                          479.61        2                68.12         8
+    With an accurate model the input correction is about ten times better, which is the paper's
+    point. But it turns the output gap into handle offsets through the model's inverse, and on this
+    lopsided plant that blows up as the model error grows; with the model as it is, on most plants.
+    Not built. It would only make sense with an accurate model (which the 2-hour refit gives) and a
+    properly designed estimator, and even at 10 % error it went unbounded on 2 of 19.

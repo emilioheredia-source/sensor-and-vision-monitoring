@@ -79,11 +79,14 @@ k_history = []
 
 
 def true_beta(t):
+    """The drifting plant's Pr/(La+Ce) separation factor at time t."""
     lm = plant.log_multipliers(t) - plant.log_multipliers(0.0)
     return plant.p.K[i_pr] / plant.p.K[i_la] * np.exp(lm[i_pr] - lm[i_la])
 
 
 def refit(x_plant, u_now):
+    """Fit the model to noisy readings of the plant now, from the last answer: (model, Pr/(La+Ce) factor,
+    Nd/Pr factor, stage-rate factor, the model's inputs, the fit's mean squared scaled residual)."""
     global theta
     y_true = readings(plant, x_plant, u_now, names)
     sd = noise_sd(y_true)
@@ -92,6 +95,7 @@ def refit(x_plant, u_now):
     state = {"x": plant.observable(x_plant)}
 
     def residuals(th):
+        """Noise-scaled reading errors of the model with these numbers (warm-started steady state)."""
         model, _, _ = model_with(rc, th)
         x = steady_state(model, u_model, x0=state["x"])
         state["x"] = x

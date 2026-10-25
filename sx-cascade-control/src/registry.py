@@ -193,6 +193,7 @@ class HoldController:
     """
 
     def __init__(self, u_nominal: Inputs, t_step: float, cut: str, level_loops=None):
+        """Hold the operating point's handles (arguments in the class docstring)."""
         self.u_nominal, self._t_step, self.cut = u_nominal, t_step, cut
         self.level_loops = level_loops
         self.last = {}                   # nothing to record per interval
@@ -251,7 +252,10 @@ def _settler_loops(rc, jacklegs, settings):
 def mpc_over_level_loops(rc, model, x_model, u_model, level_loops=None, **settings):
     """The main case's controller (mpc_level_loops) on a given model: for studies that rebuild
     the controller on a fitted model (notebooks 31 to 37). level_loops: the running loops, to keep
-    them through the rebuild; None builds new ones at u_model's jacklegs."""
+    them through the rebuild; None builds new ones at u_model's jacklegs.
+
+    Why five parameters: the run file, the model's three pieces (model, rest state, inputs) and the running level loops to keep through a rebuild; settings come as keywords.
+    """
     from .mpc import CircuitMPC
     from .operating_point import controller_settings
     s = controller_settings(rc, **{"jacklegs": False, "w_center": 0.0, "w_interface": 1e-4, **settings})
@@ -275,7 +279,10 @@ def _mpc_level_loops(op, **settings):
 
 def _two_point(op, hold_a=("lace_frac", 26), hold_b=("ndpr_frac", 4), closed_loop_h=20.0, swap=False, **settings):
     """Two-point control (two_point.py): scrub holds hold_a, organic holds hold_b, each an integral
-    loop, over a PI level loop on every settler. hold_a / hold_b: (kind, stage)."""
+    loop, over a PI level loop on every settler. hold_a / hold_b: (kind, stage).
+
+    Why five parameters: the registry's builder interface (the operating point) plus the two-point controller's keyword settings.
+    """
     from .operating_point import controller_settings
     from .two_point import TwoPointController
     s = controller_settings(op.rc, **settings)

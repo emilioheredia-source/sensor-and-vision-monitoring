@@ -717,7 +717,10 @@ def _draw_sensor_marks(plot, sensors) -> set:
 
 def _text(plot, text, position, color, anchor=(0.5, 0.5)):
     """Put text on the plot at position (x, y). The anchor (0.5, 0.5) centres it there; (0, 0.5)
-    starts it there."""
+    starts it there.
+
+    Why five parameters: it's a drawing primitive (where, what, colour, anchor); bundling them would make each call harder to read.
+    """
     x, y = position
     item = pg.TextItem(text, color=color, anchor=anchor)
     item.setPos(x, y)
@@ -726,7 +729,10 @@ def _text(plot, text, position, color, anchor=(0.5, 0.5)):
 
 def _arrow(plot, x, label, track: _ArrowTrack, anchor=(0.5, 0.5)):
     """A stream at x: a line from track.y_start to track.y_end with the head at y_end, and its
-    label at track.label_y. A left-anchored label starts half a stage to the left of the arrow."""
+    label at track.label_y. A left-anchored label starts half a stage to the left of the arrow.
+
+    Why five parameters: it's a drawing primitive; bundling them would make each call harder to read.
+    """
     plot.plot([x, x], [track.y_start, track.y_end], pen=_pen(INK, 1.2))
     pointing_down = track.y_end < track.y_start
     plot.addItem(pg.ArrowItem(pos=(x, track.y_end), angle=90 if pointing_down else -90, headLen=10,

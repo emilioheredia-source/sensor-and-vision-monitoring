@@ -46,11 +46,13 @@ FIELDS = ["seed", "upset", "controller", "off_spec_mol", "lost_excess_mol", "rea
 
 
 def spec(seed, upset, controller, hours=HOURS):
+    """The run spec for one plant, upset and controller on the main case."""
     return RunSpec(config="ndpr_main", plant="perturbed", controller=controller, upset=upset, hours=hours,
                    run_file={"plant": {"seed": seed, "generator": "ratios"}})
 
 
 def one(args):
+    """One run: product off spec, metal lost, reagent, lowest purity, clipped intervals and alarms."""
     seed, upset, controller = args
     t0 = time.time()
     session = start(spec(seed, upset, controller))
@@ -66,19 +68,36 @@ def one(args):
 
 
 def fleet():
+    """Every plant, upset and controller not already in the results file, in parallel; rows as each finishes."""
     done = set()
     if OUT.exists():
         done = {(int(r["seed"]), r["upset"], r["controller"]) for r in csv.DictReader(open(OUT))}
     else:
-        with open(OUT, "w", newline="") as f:
-            csv.DictWriter(f, fieldnames=FIELDS).writeheader()
+        _new_table(OUT)
     todo = [(s, u, c) for u in UPSETS for s in SEEDS for c in CONTROLLERS if (s, u, c) not in done]
+    _run_all(one, todo, OUT, lambda row: (
+        f"seed {row['seed']:2d} {row['upset']:12s} {row['controller']:22s} lost {row['lost_excess_mol']:7.1f} "
+        f"off spec {row['off_spec_mol']:6.1f} clipped {row['clipped_intervals']}"))
+
+
+def _new_table(path: Path):
+    """An empty results file: the header only."""
+    with open(path, "w", newline="") as f:
+        csv.DictWriter(f, fieldnames=FIELDS).writeheader()
+
+
+def _run_all(worker, todo: list, path: Path, line):
+    """The runs in todo on eight processes; each row appended to path as it finishes, and line(row) printed."""
     with Pool(8) as pool:
-        for row in pool.imap_unordered(one, todo):
-            with open(OUT, "a", newline="") as f:
-                csv.DictWriter(f, fieldnames=FIELDS).writerow(row)
-            print(f"seed {row['seed']:2d} {row['upset']:12s} {row['controller']:22s} lost {row['lost_excess_mol']:7.1f} "
-                  f"off spec {row['off_spec_mol']:6.1f} clipped {row['clipped_intervals']}", flush=True)
+        for row in pool.imap_unordered(worker, todo):
+            _append(path, row)
+            print(line(row), flush=True)
+
+
+def _append(path: Path, row: dict):
+    """One row added to the end of a results file."""
+    with open(path, "a", newline="") as f:
+        csv.DictWriter(f, fieldnames=FIELDS).writerow(row)
 
 
 SIZED_OUT = HERE / "runs" / "deployment_sized_ndpr_main.csv"
@@ -86,6 +105,7 @@ SIZED_LIMITS = {"guard_max_offset": 0.50}
 
 
 def one_sized(args):
+    """One run with the move limits sized from the upsets (SIZED_LIMITS)."""
     seed, upset, controller = args
     t0 = time.time()
     s = spec(seed, upset, controller)
@@ -103,32 +123,32 @@ def one_sized(args):
 
 
 def sized():
-    with open(SIZED_OUT, "w", newline="") as f:
-        csv.DictWriter(f, fieldnames=FIELDS).writeheader()
+    """Every plant and upset with the sized limits, advisory and guarded; rows as each finishes."""
+    _new_table(SIZED_OUT)
     todo = [(s, u, c) for u in UPSETS for s in SEEDS for c in ("mpc_advisory", "mpc_guarded")]
-    with Pool(8) as pool:
-        for row in pool.imap_unordered(one_sized, todo):
-            with open(SIZED_OUT, "a", newline="") as f:
-                csv.DictWriter(f, fieldnames=FIELDS).writerow(row)
-            print(f"seed {row['seed']:2d} {row['upset']:12s} {row['controller']:14s} off spec {row['off_spec_mol']:7.1f} "
-                  f"lost {row['lost_excess_mol']:7.1f} clipped {row['clipped_intervals']}", flush=True)
+    _run_all(one_sized, todo, SIZED_OUT, lambda row: (
+        f"seed {row['seed']:2d} {row['upset']:12s} {row['controller']:14s} off spec {row['off_spec_mol']:7.1f} "
+        f"lost {row['lost_excess_mol']:7.1f} clipped {row['clipped_intervals']}"))
 
 
 def write_journal(journal, path):
     """The guard's journal as a table: one row per interval (or event), handles flattened."""
-    rows = []
-    for e in journal:
-        row = {"t": e["t"], "mode": e.get("mode", ""), "event": e.get("event", ""), "alarm": e.get("alarm", ""),
-               "clipped": e.get("clipped", ""), "review": e.get("review", "")}
-        for kind in ("proposed", "applied"):
-            for name, value in (e.get(kind) or {}).items():
-                row[f"{kind}_{name}"] = value
-        rows.append(row)
+    rows = [_journal_row(e) for e in journal]
     keys = list(dict.fromkeys(k for r in rows for k in r))
     with open(path, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=keys)
         w.writeheader()
         w.writerows(rows)
+
+
+def _journal_row(e: dict) -> dict:
+    """One journal entry as a flat row: time, mode, event, alarm, clipped, review, then each handle as
+    proposed and as applied."""
+    row = {"t": e["t"], "mode": e.get("mode", ""), "event": e.get("event", ""), "alarm": e.get("alarm", ""),
+           "clipped": e.get("clipped", ""), "review": e.get("review", "")}
+    for kind in ("proposed", "applied"):
+        row.update({f"{kind}_{name}": value for name, value in (e.get(kind) or {}).items()})
+    return row
 
 
 def handover(seed=1):
@@ -154,11 +174,13 @@ class Crashing:
     """Makes the wrapped controller raise between two times: a stand-in for a solver or data fault."""
 
     def __init__(self, guard, t0, t1):
+        """Wrap the guarded controller's inner controller so its step raises between t0 and t1."""
         self.guard, self.t0, self.t1 = guard, t0, t1
         inner = guard.inner
         real_step = inner.step
 
         def step(obs):
+            """The inner controller's step, or a raised fault inside the window."""
             if self.t0 <= guard.t < self.t1:
                 raise RuntimeError("injected fault")
             return real_step(obs)
@@ -166,6 +188,8 @@ class Crashing:
 
 
 def watchdog(seed=1):
+    """A guarded controller that faults between 20 and 23 h and is re-armed after 30 h; its journal and
+    alarms."""
     session = start(spec(seed, "feed_switch", "mpc_guarded", hours=60.0))
     guard = session.controller
     Crashing(guard, 20.0, 23.0)

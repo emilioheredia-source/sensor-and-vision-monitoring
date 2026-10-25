@@ -33,12 +33,20 @@ ORG, AQ = SLOT[3], SLOT[0]          # organic in yellow, aqueous in blue, throug
 
 
 def arrow(ax, p, q, color, lw=1.6):
-    """Draw a straight arrow on ax from point p to point q, both (x, y), in the given colour and line width."""
+    """Draw a straight arrow on ax from point p to point q, both (x, y), in the given colour and line width.
+
+    Its parameters are kept, more than the guidelines like: each is a coordinate or a style setting of
+    one drawing call, and bundling them would make every call below harder to read.
+    """
     ax.add_patch(FancyArrowPatch(p, q, arrowstyle="-|>", mutation_scale=12, color=color, lw=lw, shrinkA=0, shrinkB=0))
 
 
 def label(ax, x, y, text, ha="center", va="bottom", size=8, color=INK2):
-    """Write text on ax at (x, y); ha and va set which side of the point the text sits on, size is in points."""
+    """Write text on ax at (x, y); ha and va set which side of the point the text sits on, size is in points.
+
+    Its parameters are kept, more than the guidelines like: each is a coordinate or a style setting of
+    one drawing call, and bundling them would make every call below harder to read.
+    """
     ax.text(x, y, text, ha=ha, va=va, fontsize=size, color=color)
 
 
@@ -153,6 +161,8 @@ ax.axis("off")
 
 def box(x, y, w, h, title, body, fc=SURFACE):
     """Draw a rounded box with a bold title at the top and smaller body text at the bottom.
+    Its parameters are kept, more than the guidelines like: each is a coordinate or a style setting of
+    one drawing call, and bundling them would make every call below harder to read.
 
     x, y   the lower-left corner; w, h the width and height, all in the diagram's coordinates.
     fc     the fill colour.
@@ -287,7 +297,7 @@ print("wrote", FIGURES / "diag_circuit.png", FIGURES / "diag_stage.png", FIGURES
 FF, NOT_BUILT = SLOT[2], MUTED                 # feedforward in green, what isn't built in grey
 fig, ax = plt.subplots(figsize=(11.0, 7.4))
 ax.set_xlim(-0.3, 14.6)
-ax.set_ylim(0.9, 10.6)
+ax.set_ylim(0.7, 10.6)
 ax.axis("off")
 
 box(0.2, 6.2, 3.6, 1.9, "Steady-state optimizer",
@@ -375,7 +385,28 @@ ax.plot([2.05, 2.05], [4.15, 6.05], color=SUP, lw=1.4, ls="-.")
 arrow(ax, (2.05, 6.0), (2.05, 6.2), SUP)
 label(ax, 2.15, 5.1, "reviewed model\nto the optimizer\nand the MPC", ha="left", va="center", size=6.8)
 
+# v1.3: what keeps the controller out of trouble when the model is wrong or the plant is slow, dotted
+# because none of it is in the default controller: the rest-point check is a setting, off by default
+# (ARCHITECTURE decision 42); the acid-balance cap and the 2-hour refit are built in the study
+# notebooks (52, 51) around the controller.
+OPT = SLOT[1]
+ax.add_patch(FancyBboxPatch((4.0, 8.45), 1.6, 0.95, boxstyle="round,pad=0.02,rounding_size=0.08",
+                            fc=SURFACE, ec=OPT, lw=1.1, ls=":"))
+label(ax, 4.8, 8.52, "rest-point check:\nmodel solved to rest\nevery 12 h; long-run\nfloors set there", size=6.2,
+      color=INK)
+arrow(ax, (5.5, 8.45), (5.5, 8.3), OPT)
+ax.add_patch(FancyBboxPatch((9.0, 7.55), 1.3, 0.95, boxstyle="round,pad=0.02,rounding_size=0.08",
+                            fc=SURFACE, ec=OPT, lw=1.1, ls=":"))
+label(ax, 9.65, 7.62, "acid-balance cap\non saponification\n(loaded organic,\nacids, flows)", size=6.0, color=INK)
+ax.plot([9.04, 9.04], [7.55, 7.32], color=OPT, lw=1.2, ls=":")
+arrow(ax, (9.04, 7.32), (9.04, 7.17), OPT)
+label(ax, 2.05, 2.08, "v1.3 studies: the same three numbers refitted\nevery 2 h on the last 2 h of readings, inside bounds",
+      va="top", size=6.6, color=INK)
+
 # key
+ax.plot([0.3, 0.9], [1.0, 1.0], color=OPT, lw=1.4, ls=":")
+label(ax, 1.0, 1.0, "dotted: an option in the controller, or built in the v1.3 study notebooks around it",
+      ha="left", va="center", size=7.4)
 ax.plot([0.3, 0.9], [1.45, 1.45], color=INK2, lw=1.6)
 label(ax, 1.0, 1.45, "feedback", ha="left", va="center", size=7.4)
 ax.plot([2.4, 3.0], [1.45, 1.45], color=FF, lw=1.4, ls="--")
@@ -437,7 +468,11 @@ EQ = 10.5
 
 
 def eq_box(x, y, w, h, n, title, lines, note):
-    """A numbered box: title on top, equations (mathtext) in the middle, a source note at the bottom."""
+    """A numbered box: title on top, equations (mathtext) in the middle, a source note at the bottom.
+
+    Its parameters are kept, more than the guidelines like: each is a coordinate or a style setting of
+    one drawing call, and bundling them would make every call below harder to read.
+    """
     ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.02,rounding_size=0.10", fc=SURFACE,
                                 ec=INK2, lw=1.0))
     ax.text(x + 0.15, y + h - 0.15, f"{n}  {title}", ha="left", va="top", fontsize=9.5, color=INK, fontweight="bold")
@@ -458,7 +493,7 @@ eq_box(9.05, 3.75, 3.3, 2.75, 2, "Transfer, at a finite rate",
         (r"stage efficiency  $\eta_j = \frac{k\tau_j}{1 + k\tau_j}$,   $\tau_j = \frac{V_{\mathrm{mix}}}{Q^a_j + Q^o}$",
          EQ - 1.5)],
        "Metal moves toward equilibrium.\n$k$ = 380 /h: 95 % of the way in the\n"
-       "lab's 3 minutes. $\kappa_j$ = 1 unless fouled.")
+       r"lab's 3 minutes. $\kappa_j$ = 1 unless fouled.")
 eq_box(5.6, 0.55, 3.3, 2.95, 3, "Balances, metal and acid",
        [(r"$V^a_j\,\dot c^a_{ij} = \sum_{\mathrm{in}} Q\,c_i - Q^a_j\,c^a_{ij} - r_{ij}$", EQ - 0.5),
         (r"$V^o_j\,\dot c^o_{ij} = \sum_{\mathrm{in}} Q\,c_i - Q^o\,c^o_{ij} + r_{ij}$", EQ - 0.5),
